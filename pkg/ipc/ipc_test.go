@@ -196,14 +196,14 @@ func TestNodeStdinSuccess(t *testing.T) {
 	js := `
 		const readline = (() => {
 			async function* createReadlineGenerator() {
-				const readline = require("readline").createInterface({ input: process.stdin })
-				for await (const stdin of readline) {
-					yield stdin
+				const readlineImpl = require("readline").createInterface({ input: process.stdin })
+				for await (const line of readlineImpl) {
+					yield line
 				}
 			}
-			const readlineGenerator = createReadlineGenerator()
+			const generate = createReadlineGenerator()
 			return async () => {
-				return (await readlineGenerator.next()).value
+				return (await generate.next()).value
 			}
 		})()
 

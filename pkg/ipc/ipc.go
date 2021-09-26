@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os/exec"
+	"strings"
+	"time"
 )
 
 // Starts a long-lived IPC process. Note that stdout reads line-by-line whereas
@@ -88,20 +90,28 @@ func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 		if !statusIsHealthy {
 			return
 		}
+		// NOTE: Use `scanner.Split` instead of `scanner.Buffer` because
+		// `scanner.Buffer` only captures the first line of stderr for Node.js
+		// exceptions
 		scanner := bufio.NewScanner(stderrPipe)
-		scanner.Buffer(
-			make([]byte, 1024*1024), // Buffer
-			1024*1024,               // Buffer length
-		)
+		scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+			return len(data), data, nil
+		})
 		for scanner.Scan() {
 			if str := scanner.Text(); str != "" {
-				stderr <- str
+				// Remove the EOF because the `scanner.Split` includes the EOF;
+				// `scanner.Buffer` doesn't
+				stderr <- strings.TrimRight(str, "\n")
 			}
+			// Add a micro-delay to prevent Go from panicking:
+			//
+			//  panic: bufio.Scan: too many empty tokens without progressing
+			//
+			time.Sleep(10 * time.Millisecond)
 		}
 		if err := scanner.Err(); err != nil {
 			panic(err)
 		}
-
 	}()
 
 	// Start the command

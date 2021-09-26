@@ -15,7 +15,7 @@ func decorateStdoutLine(stdoutLine string) string {
 
 func decorateStderrText(stderrText string) string {
 	var decoratedErrStr string
-	for lineIndex, line := range strings.Split(strings.TrimSpace(stderrText), "\n") {
+	for lineIndex, line := range strings.Split(strings.TrimRight(stderrText, "\n"), "\n") {
 		if lineIndex > 0 {
 			decoratedErrStr += "\n"
 		}
@@ -41,35 +41,50 @@ func main() {
 	)
 
 	// Run command
-	stdin, stdout, stderr, err := ipc.NewCommand(cmdArgs...)
+	_, stdout, stderr, err := ipc.NewCommand(cmdArgs...)
 	if err != nil {
 		log.Fatalf("ipc.NewCommand: %s\n", err)
 	}
 
 	// Messages
 	fmt.Println(terminal.Dimf("%% %s", cmdStr))
-	stdin <- "foo"
-	select {
-	case stdoutLine := <-stdout:
-		if stdoutLine == "<eof>" {
-			break
+loop:
+	for {
+		select {
+		case stdoutLine := <-stdout:
+			if stdoutLine == "<eof>" {
+				break loop
+			}
+			fmt.Println(decorateStdoutLine(stdoutLine))
+		case stderrText := <-stderr:
+			// fmt.Printf("%q\n", stderrText)
+			fmt.Println(decorateStderrText(stderrText))
+			break loop
 		}
-		fmt.Println(decorateStdoutLine(stdoutLine))
-	case stderrText := <-stderr:
-		fmt.Println(decorateStderrText(stderrText))
-		break
 	}
-	stdin <- "bar"
-	select {
-	case stdoutLine := <-stdout:
-		if stdoutLine == "<eof>" {
-			break
-		}
-		fmt.Println(decorateStdoutLine(stdoutLine))
-	case stderrText := <-stderr:
-		fmt.Println(decorateStderrText(stderrText))
-		break
-	}
+
+	// stdin <- "foo"
+	// select {
+	// case stdoutLine := <-stdout:
+	// 	if stdoutLine == "<eof>" {
+	// 		break
+	// 	}
+	// 	fmt.Println(decorateStdoutLine(stdoutLine))
+	// case stderrText := <-stderr:
+	// 	fmt.Println(decorateStderrText(stderrText))
+	// 	break
+	// }
+	// stdin <- "bar"
+	// select {
+	// case stdoutLine := <-stdout:
+	// 	if stdoutLine == "<eof>" {
+	// 		break
+	// 	}
+	// 	fmt.Println(decorateStdoutLine(stdoutLine))
+	// case stderrText := <-stderr:
+	// 	fmt.Println(decorateStderrText(stderrText))
+	// 	break
+	// }
 }
 
 // func main() {
