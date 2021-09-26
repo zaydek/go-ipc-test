@@ -23,7 +23,7 @@ async function sleep(milliseconds) {
 	await new Promise(resolve => setTimeout(resolve, milliseconds))
 }
 
-async function main() {
+function main() {
 	console.log("stdout ok (1 of 2)")
 	console.error("stderr ok (1 of 2)")
 	await sleep(1_000)
