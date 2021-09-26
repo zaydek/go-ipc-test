@@ -6,7 +6,8 @@ import (
 	"os/exec"
 )
 
-// Starts a long-lived IPC process.
+// Starts a long-lived IPC process. Note that stdout reads line-by-line whereas
+// stderr reads once.
 func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 	cmd := exec.Command(args[0], args[1:]...)
 

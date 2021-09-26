@@ -49,9 +49,9 @@ func TestNodeSyntaxError(t *testing.T) {
 
 		function main() {
 			console.log("ok (1 of 2)")
-			await sleep(1_000)
+			await sleep(100)
 			console.log("ok (2 of 2)")
-			await sleep(1_000)
+			await sleep(100)
 			console.log("<eof>")
 		}
 
@@ -69,7 +69,6 @@ func TestNodeSyntaxError(t *testing.T) {
 	}
 
 	var out string
-
 loop:
 	for {
 		select {
@@ -92,7 +91,7 @@ loop:
 	t.Fatalf("unexpected out=%q", out)
 }
 
-func TestNodeSuccess(t *testing.T) {
+func TestNodeStdoutSuccess(t *testing.T) {
 	const (
 		MODE_DIR  = 0755
 		MODE_FILE = 0644
@@ -105,9 +104,9 @@ func TestNodeSuccess(t *testing.T) {
 
 		async function main() {
 			console.log("ok (1 of 2)")
-			await sleep(1_000)
+			await sleep(100)
 			console.log("ok (2 of 2)")
-			await sleep(1_000)
+			await sleep(100)
 			console.log("<eof>")
 		}
 
@@ -125,7 +124,6 @@ func TestNodeSuccess(t *testing.T) {
 	}
 
 	var out string
-
 loop:
 	for {
 		select {
@@ -141,4 +139,124 @@ loop:
 	}
 
 	expect.DeepEqual(t, out, "stdout: ok (1 of 2)\nstdout: ok (2 of 2)\n")
+}
+
+func TestNodeStderrSuccess(t *testing.T) {
+	const (
+		MODE_DIR  = 0755
+		MODE_FILE = 0644
+	)
+
+	js := `
+		async function sleep(milliseconds) {
+			await new Promise(resolve => setTimeout(resolve, milliseconds))
+		}
+
+		async function main() {
+			console.error("stop")
+		}
+
+		main()
+	`
+
+	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), MODE_FILE); err != nil {
+		t.Fatalf("os.WriteFile: %s", err)
+	}
+	defer os.Remove("ipc_test.go.script.js")
+
+	_, stdout, stderr, err := NewCommand("node", "ipc_test.go.script.js")
+	if err != nil {
+		log.Fatalf("ipc.NewCommand: %s\n", err)
+	}
+
+	var out string
+loop:
+	for {
+		select {
+		case stdoutLine := <-stdout:
+			if stdoutLine == "<eof>" {
+				break loop
+			}
+			out += fmt.Sprintf("stdout: %s\n", stdoutLine)
+		case stderrText := <-stderr:
+			out += fmt.Sprintf("stderr: %s\n", stderrText)
+			break loop
+		}
+	}
+
+	expect.DeepEqual(t, out, "stderr: stop\n")
+}
+
+func TestNodeStdinSuccess(t *testing.T) {
+	const (
+		MODE_DIR  = 0755
+		MODE_FILE = 0644
+	)
+
+	js := `
+		const readline = (() => {
+			async function* createReadlineGenerator() {
+				const readline = require("readline").createInterface({ input: process.stdin })
+				for await (const stdin of readline) {
+					yield stdin
+				}
+			}
+			const readlineGenerator = createReadlineGenerator()
+			return async () => {
+				return (await readlineGenerator.next()).value
+			}
+		})()
+
+		async function sleep(milliseconds) {
+			await new Promise(resolve => setTimeout(resolve, milliseconds))
+		}
+
+		async function main() {
+			console.log(` + "`" + `stdin=${JSON.stringify(await readline())}` + "`" + `)
+			sleep(100)
+			console.log(` + "`" + `stdin=${JSON.stringify(await readline())}` + "`" + `)
+			sleep(100)
+			console.log("<eof>")
+		}
+
+		main()
+	`
+
+	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), MODE_FILE); err != nil {
+		t.Fatalf("os.WriteFile: %s", err)
+	}
+	defer os.Remove("ipc_test.go.script.js")
+
+	stdin, stdout, stderr, err := NewCommand("node", "ipc_test.go.script.js")
+	if err != nil {
+		log.Fatalf("ipc.NewCommand: %s\n", err)
+	}
+
+	var out string
+
+	stdin <- "foo"
+	select {
+	case stdoutLine := <-stdout:
+		if stdoutLine == "<eof>" {
+			break
+		}
+		out += fmt.Sprintf("stdout: %s\n", stdoutLine)
+	case stderrText := <-stderr:
+		out += fmt.Sprintf("stderr: %s\n", stderrText)
+		break
+	}
+
+	stdin <- "bar"
+	select {
+	case stdoutLine := <-stdout:
+		if stdoutLine == "<eof>" {
+			break
+		}
+		out += fmt.Sprintf("stdout: %s\n", stdoutLine)
+	case stderrText := <-stderr:
+		out += fmt.Sprintf("stderr: %s\n", stderrText)
+		break
+	}
+
+	expect.DeepEqual(t, out, "stdout: stdin=\"foo\"\nstdout: stdin=\"bar\"\n")
 }
