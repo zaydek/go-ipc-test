@@ -27,65 +27,79 @@ interface Message {
 interface BackendResponse {
 	Metafile: {
 		Vendor: esbuild.Metafile | null
-		Bundle: esbuild.Metafile | null
+		Client: esbuild.Metafile | null
 	}
-	Errors: esbuild.Message[]
 	Warnings: esbuild.Message[]
+	Errors: esbuild.Message[]
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Lazily wraps `throw new Error(...)` because throws aren't legal expressions.
-function InternalError() {
+function InternalError<Type>(returnType: Type): Type {
 	throw new Error("Internal Error")
+	return returnType
 }
 
-const CMD = process.env["CMD"] ?? InternalError()
-const ENV = process.env["ENV"] ?? InternalError()
-const WWW_DIR = process.env["WWW_DIR"] ?? InternalError()
-const SRC_DIR = process.env["SRC_DIR"] ?? InternalError()
-const OUT_DIR = process.env["OUT_DIR"] ?? InternalError()
+const NODE_ENV = process.env["NODE_ENV"] ?? InternalError("")
+const RETRO_CMD = process.env["RETRO_CMD"] ?? InternalError("")
+const RETRO_WWW_DIR = process.env["RETRO_WWW_DIR"] ?? InternalError("")
+const RETRO_SRC_DIR = process.env["RETRO_SRC_DIR"] ?? InternalError("")
+const RETRO_OUT_DIR = process.env["RETRO_OUT_DIR"] ?? InternalError("")
 
-// Describes the bundled React esbuild result
+// Describes the bundled vendor (React) esbuild result
 let vendorResult: esbuild.BuildResult | null = null
 
-// Describes the bundled Retro esbuild result
-let bundleResult: esbuild.BuildResult | esbuild.BuildIncremental | null = null
+// Describes the bundled client (Retro) esbuild result
+let clientResult: esbuild.BuildResult | esbuild.BuildIncremental | null = null
 
-const common: esbuild.BuildOptions = {
-	color: true,
+const commonOptions: esbuild.BuildOptions = {
+	// Always bundle
+	bundle: true,
 
 	// Propagate env vars
 	define: {
-		// For React and React DOM
-		"process.env.NODE_ENV": JSON.stringify(ENV),
+		// React and React DOM
+		"process.env.NODE_ENV": JSON.stringify(NODE_ENV),
 
-		// For Retro
-		"process.env.CMD": JSON.stringify(CMD),
-		"process.env.ENV": JSON.stringify(ENV),
-		"process.env.WWW_DIR": JSON.stringify(WWW_DIR),
-		"process.env.SRC_DIR": JSON.stringify(SRC_DIR),
-		"process.env.OUT_DIR": JSON.stringify(OUT_DIR),
+		// Retro
+		"process.env.RETRO_CMD": JSON.stringify(RETRO_CMD),
+		"process.env.RETRO_WWW_DIR": JSON.stringify(RETRO_WWW_DIR),
+		"process.env.RETRO_SRC_DIR": JSON.stringify(RETRO_SRC_DIR),
+		"process.env.RETRO_OUT_DIR": JSON.stringify(RETRO_OUT_DIR),
 	},
+
+	// Hash filenames for production
+	entryNames: NODE_ENV !== "production"
+		? undefined
+		: "[dir]/[name]__[hash]",
 
 	// Load JavaScript as JavaScript React
 	loader: { ".js": "jsx" },
+
+	// Don't log because warnings and errors are handled programmatically
 	logLevel: "silent",
-	minify: ENV === "production",
-	// TODO
+
+	// Includes the generated hashed filenames
+	metafile: true,
+
+	// Minify for production
+	minify: NODE_ENV === "production",
+
+	// Target directory
+	outdir: RETRO_OUT_DIR,
+
+	// Add `*.map` files
 	sourcemap: true,
 }
 
-// Resolves `retro.config.js` on the filesystem. Returns an empty object if no
-// such configuration exists.
+// Resolves `retro.config.js` on the filesystem.
 async function resolveRetroConfig(): Promise<esbuild.BuildOptions> {
 	try {
 		await fs.promises.stat("retro.config.js")
 	} catch {
 		return {}
 	}
-	// TODO: Do we need to create an absolute path? Can we not use a relative path
-	// instead?
 	const retroConfigFilename = path.join(process.cwd(), "retro.config.js")
 	return require(retroConfigFilename)
 }
@@ -93,103 +107,125 @@ async function resolveRetroConfig(): Promise<esbuild.BuildOptions> {
 ////////////////////////////////////////////////////////////////////////////////
 
 async function build(): Promise<BackendResponse> {
-	const buildRes: BackendResponse = {
+	// Create an empty backend response
+	const buildResult: BackendResponse = {
 		Metafile: {
 			Vendor: null,
-			Bundle: null,
+			Client: null,
 		},
 		Warnings: [],
 		Errors: [],
 	}
 
+	// Resolve `.retro.config.js`
 	const config = await resolveRetroConfig()
 
 	try {
+		// Build the vendor bundle (e.g. React)
+		//
+		// NOTE: Vendor bundles don't support configuration
 		vendorResult = await esbuild.build({
-			...common,
+			...commonOptions,
 
-			// Add support for target
-			target: config.target,
-
-			bundle: true,
-			entryNames: ENV !== "production" ? undefined : "[dir]/[name]__[hash]",
+			// Entry point for the bundle
 			entryPoints: {
-				"vendor": path.join(__dirname, "react.js"),
+				"vendor": path.join(__dirname, "scripts/vendor.js"),
 			},
-			metafile: true,
-			outdir: OUT_DIR,
 		})
-		buildRes.Metafile.Vendor = vendorResult.metafile!
+		buildResult.Metafile.Vendor = vendorResult.metafile!
 
-		bundleResult = await esbuild.build({
-			...config,
-			...common,
+		// Build the client bundle (e.g. Retro)
+		clientResult = await esbuild.build({
+			...commonOptions, // Takes precedence
+			...config,        // Can override common options
 
-			define: { ...config.define, ...common.define },
-			loader: { ...config.loader, ...common.loader },
+			// Global variables
+			define: {
+				...commonOptions.define, // Takes precedence
+				...config.define,        // Can override common options
+			},
 
-			bundle: true,
-			entryNames: ENV !== "production" ? undefined : "[dir]/[name]__[hash]",
+			// Entry point for the bundle
 			entryPoints: {
-				"bundle": path.join(SRC_DIR, "index.js"),
+				"client": path.join(RETRO_SRC_DIR, "index.js"),
 			},
-			metafile: true,
-			outdir: OUT_DIR,
 
-			external: ["react", "react-dom", "react-dom/server"], // Dedupe React APIs
-			inject: [path.join(__dirname, "shims/require.js")], // Add React APIs
-			plugins: config?.plugins,
+			// Dedupe React APIs from `bundle.js`; React APIs are bundled in
+			// `vendor.js`. See `inject` for more context.
+			external: [
+				"react",
+				"react-dom",
+				"react-dom/server",
+			],
 
-			incremental: ENV === "development",
+			// Enable incremental compilation for development
+			incremental: NODE_ENV === "development",
+
+			// Expose React APIs as global variables (defined on `window`). See
+			// `external` for more context.
+			inject: [path.join(__dirname, "scripts/require.js")], // Add React APIs
+
+			loader: {
+				...commonOptions.loader, // Takes precedence
+				...config.loader,        // Can override common options
+			},
 		})
-		buildRes.Metafile.Bundle = bundleResult.metafile!
+		buildResult.Metafile.Client = clientResult.metafile!
 
-		if (bundleResult.warnings.length > 0) {
-			buildRes.Warnings = bundleResult.warnings
+		if (clientResult.warnings.length > 0) {
+			buildResult.Warnings = clientResult.warnings
 		}
 	} catch (caught) {
-		if (caught.errors.length > 0) {
-			buildRes.Errors = caught.errors
-		}
+		// NOTE: esbuild warnings and errors are silent (via `logLevel: "silent"`)
+		// because warnings and errors are managed by Retro. Retro decorates esbuild
+		// errors and propagates them to the terminal and browser.
 		if (caught.warnings.length > 0) {
-			buildRes.Warnings = caught.warnings
+			buildResult.Warnings = caught.warnings
+		}
+		if (caught.errors.length > 0) {
+			buildResult.Errors = caught.errors
 		}
 	}
 
-	return buildRes
+	return buildResult
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Rebuilds the build result by reusing `build` literally. Note that only the
+// client result is rebuilt, not the vendor result.
 async function rebuild(): Promise<BackendResponse> {
-	if (bundleResult?.rebuild === undefined) {
+	if (clientResult?.rebuild === undefined) {
 		return await build()
 	}
 
-	const rebuildRes: BackendResponse = {
+	const rebuildResult: BackendResponse = {
 		Metafile: {
 			Vendor: null,
-			Bundle: null,
+			Client: null,
 		},
 		Warnings: [],
 		Errors: [],
 	}
 
 	try {
-		const result2 = await bundleResult.rebuild()
+		const result2 = await clientResult.rebuild()
 		if (result2.warnings.length > 0) {
-			rebuildRes.Warnings = result2.warnings
+			rebuildResult.Warnings = result2.warnings
 		}
 	} catch (caught) {
-		if (caught.errors.length > 0) {
-			rebuildRes.Errors = caught.errors
-		}
+		// NOTE: esbuild warnings and errors are silent (via `logLevel: "silent"`)
+		// because warnings and errors are managed by Retro. Retro decorates esbuild
+		// errors and propagates them to the terminal and browser.
 		if (caught.warnings.length > 0) {
-			rebuildRes.Warnings = caught.warnings
+			rebuildResult.Warnings = caught.warnings
+		}
+		if (caught.errors.length > 0) {
+			rebuildResult.Errors = caught.errors
 		}
 	}
 
-	return rebuildRes
+	return rebuildResult
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -199,30 +235,25 @@ async function main(): Promise<void> {
 	esbuild.initialize({})
 
 	while (true) {
-		const line = await readline()
-		const message: Message = JSON.parse(line)
+		const action = await readline()
 		try {
-			switch (message.Kind) {
-				// Incoming `build` events
+			switch (action) {
 				case "build":
 					const buildResult = await build()
-					// Outgoing `build-done` events
 					console.log(
 						JSON.stringify({
 							Kind: "build-done",
 							Data: buildResult,
-						}),
+						} as Message),
 					)
 					break
-				// Incoming `rebuild` events
 				case "rebuild":
 					const rebuildResult = await rebuild()
-					// Outgoing `rebuild-done` events
 					console.log(
 						JSON.stringify({
 							Kind: "rebuild-done",
 							Data: rebuildResult,
-						}),
+						} as Message),
 					)
 					break
 				default:

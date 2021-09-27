@@ -1,13 +1,28 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
+	"github.com/evanw/esbuild/pkg/api"
 	"github.com/zaydek/go-ipc-test/pkg/ipc"
 	"github.com/zaydek/go-ipc-test/pkg/terminal"
 )
+
+type BackendResponse struct {
+	Kind string
+	Data struct {
+		Metafile struct {
+			Vendor map[string]interface{}
+			Bundle map[string]interface{}
+		}
+		Errors   []api.Message
+		Warnings []api.Message
+	}
+}
 
 func decorateStdoutLine(stdoutLine string) string {
 	return fmt.Sprintf("%s  %s", terminal.BoldCyan("stdout"), stdoutLine)
@@ -24,107 +39,97 @@ func decorateStderrText(stderrText string) string {
 	return decoratedErrStr
 }
 
+func setEnvVars() {
+	// NODE_ENV=...
+	if env := os.Getenv("NODE_ENV"); env != "" {
+		os.Setenv("NODE_ENV", env)
+	} else {
+		// TODO: `development` and `production` aren't configurable presently
+		os.Setenv("NODE_ENV", "development")
+	}
+	// RETRO_CMD=...
+	if env := os.Getenv("RETRO_CMD"); env != "" {
+		os.Setenv("RETRO_CMD", env)
+	} else {
+		// TODO: `dev` and `build` aren't configurable presently
+		os.Setenv("RETRO_CMD", "dev")
+	}
+	// RETRO_WWW_DIR=...
+	if env := os.Getenv("RETRO_WWW_DIR"); env != "" {
+		os.Setenv("RETRO_WWW_DIR", env)
+	} else {
+		os.Setenv("RETRO_WWW_DIR", "www")
+	}
+	// RETRO_SRC_DIR=...
+	if env := os.Getenv("RETRO_SRC_DIR"); env != "" {
+		os.Setenv("RETRO_SRC_DIR", env)
+	} else {
+		os.Setenv("RETRO_SRC_DIR", "src")
+	}
+	// RETRO_OUT_DIR=...
+	if env := os.Getenv("RETRO_OUT_DIR"); env != "" {
+		os.Setenv("RETRO_OUT_DIR", env)
+	} else {
+		os.Setenv("RETRO_OUT_DIR", "out")
+	}
+}
+
+func initialize() {
+	setEnvVars()
+	if err := os.RemoveAll(os.Getenv("RETRO_OUT_DIR")); err != nil {
+		panic(err)
+	}
+}
+
 func main() {
-	// Prepare command
+	initialize()
+
 	var (
-		cmdArgs = []string{"node", "script.js"}
-		cmdStr  = func() string {
-			var cmdStr string
+		// CLI arguments
+		cmdArgs = []string{"node", "backend.esbuild.js"}
+
+		// String CLI arguments
+		cmdStr = func() string {
+			var _cmdStr string
 			for argIndex, arg := range cmdArgs {
 				if argIndex > 0 {
-					cmdStr += " "
+					_cmdStr += " "
 				}
-				cmdStr += arg
+				_cmdStr += arg
 			}
-			return cmdStr
+			return _cmdStr
 		}()
 	)
 
-	// Run command
-	_, stdout, stderr, err := ipc.NewCommand(cmdArgs...)
+	stdin, stdout, stderr, err := ipc.NewCommand(cmdArgs...)
 	if err != nil {
 		log.Fatalf("ipc.NewCommand: %s\n", err)
 	}
 
-	// Messages
 	fmt.Println(terminal.Dimf("%% %s", cmdStr))
-loop:
-	for {
-		select {
-		case stdoutLine := <-stdout:
-			if stdoutLine == "<eof>" {
-				break loop
-			}
-			fmt.Println(decorateStdoutLine(stdoutLine))
-		case stderrText := <-stderr:
-			// fmt.Printf("%q\n", stderrText)
-			fmt.Println(decorateStderrText(stderrText))
-			break loop
+	stdin <- "build"
+	select {
+	case stdoutLine := <-stdout:
+		if stdoutLine == "<eof>" {
+			break
 		}
+		// fmt.Println(decorateStdoutLine(stdoutLine)) // DEBUG
+
+		// Unmarshal the build response
+		var buildResponse BackendResponse
+		if err := json.Unmarshal([]byte(stdoutLine), &buildResponse); err != nil {
+			panic(err)
+		}
+
+		// Marshal the build response
+		byteStr, err := json.MarshalIndent(buildResponse, "", "  ")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(byteStr))
+
+	case stderrText := <-stderr:
+		fmt.Println(decorateStderrText(stderrText))
+		break
 	}
-
-	// stdin <- "foo"
-	// select {
-	// case stdoutLine := <-stdout:
-	// 	if stdoutLine == "<eof>" {
-	// 		break
-	// 	}
-	// 	fmt.Println(decorateStdoutLine(stdoutLine))
-	// case stderrText := <-stderr:
-	// 	fmt.Println(decorateStderrText(stderrText))
-	// 	break
-	// }
-	// stdin <- "bar"
-	// select {
-	// case stdoutLine := <-stdout:
-	// 	if stdoutLine == "<eof>" {
-	// 		break
-	// 	}
-	// 	fmt.Println(decorateStdoutLine(stdoutLine))
-	// case stderrText := <-stderr:
-	// 	fmt.Println(decorateStderrText(stderrText))
-	// 	break
-	// }
 }
-
-// func main() {
-// 	// _, stdout, stderr, err := ipc.NewCommand("echo", "foo bar")
-// 	// _, stdout, stderr, err := ipc.NewCommand("foo")
-// 	_, stdout, stderr, err := ipc.NewCommand("node", "script.js")
-// 	if err != nil {
-// 		log.Fatalln(err)
-// 	}
-// 	// select {
-// 	// case stdoutLine := <-stdout:
-// 	// 	fmt.Println(decorateStdoutLine(stdoutLine))
-// 	// case stderrText := <-stderr:
-// 	// 	fmt.Println(decorateStderrText(stderrText))
-// 	// 	break
-// 	// }
-//
-// loop:
-// 	for {
-// 		select {
-// 		case stdoutLine := <-stdout:
-// 			if stdoutLine == "<eof>" {
-// 				break loop
-// 			}
-// 			fmt.Println(decorateStdoutLine(stdoutLine))
-// 		case stderrText := <-stderr:
-// 			fmt.Println(decorateStderrText(stderrText))
-// 			break loop
-// 		}
-// 	}
-//
-// 	// _, _, _, err := ipc.NewCommand("foo")
-// 	// if err != nil {
-// 	// 	log.Fatalln(err)
-// 	// }
-// 	// select {
-// 	// case stdoutLine := <-stdout:
-// 	// 	fmt.Println(decorateStdoutLine(stdoutLine))
-// 	// case stderrText := <-stderr:
-// 	// 	fmt.Println(decorateStderrText(stderrText))
-// 	// 	break
-// 	// }
-// }
