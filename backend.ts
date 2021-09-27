@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild"
-import * as fs from "fs"
+import * as fsPromises from "fs/promises"
 import * as path from "path"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +41,7 @@ function InternalError<Type>(returnType: Type): Type {
 	return returnType
 }
 
+// TODO: Should we be qualifying the values of the environmental variables here?
 const NODE_ENV = process.env["NODE_ENV"] ?? InternalError("")
 const RETRO_CMD = process.env["RETRO_CMD"] ?? InternalError("")
 const RETRO_WWW_DIR = process.env["RETRO_WWW_DIR"] ?? InternalError("")
@@ -53,11 +54,11 @@ let vendorResult: esbuild.BuildResult | null = null
 // Describes the bundled client (Retro) esbuild result
 let clientResult: esbuild.BuildResult | esbuild.BuildIncremental | null = null
 
-const commonOptions: esbuild.BuildOptions = {
+const internalOptions: esbuild.BuildOptions = {
 	// Always bundle
 	bundle: true,
 
-	// Propagate env vars
+	// Propagate environmental variables
 	define: {
 		// React and React DOM
 		"process.env.NODE_ENV": JSON.stringify(NODE_ENV),
@@ -75,7 +76,9 @@ const commonOptions: esbuild.BuildOptions = {
 		: "[dir]/[name]__[hash]",
 
 	// Load JavaScript as JavaScript React
-	loader: { ".js": "jsx" },
+	loader: {
+		".js": "jsx",
+	},
 
 	// Don't log because warnings and errors are handled programmatically
 	logLevel: "silent",
@@ -94,9 +97,9 @@ const commonOptions: esbuild.BuildOptions = {
 }
 
 // Resolves `retro.config.js` on the filesystem.
-async function resolveRetroConfig(): Promise<esbuild.BuildOptions> {
+async function resolveUserConfiguration(): Promise<esbuild.BuildOptions> {
 	try {
-		await fs.promises.stat("retro.config.js")
+		await fsPromises.stat("retro.config.js")
 	} catch {
 		return {}
 	}
@@ -118,14 +121,14 @@ async function build(): Promise<BackendResponse> {
 	}
 
 	// Resolve `.retro.config.js`
-	const config = await resolveRetroConfig()
+	const userConfiguration = await resolveUserConfiguration()
 
 	try {
 		// Build the vendor bundle (e.g. React)
 		//
 		// NOTE: Vendor bundles don't support configuration
 		vendorResult = await esbuild.build({
-			...commonOptions,
+			...internalOptions,
 
 			// Entry point for the bundle
 			entryPoints: {
@@ -136,13 +139,13 @@ async function build(): Promise<BackendResponse> {
 
 		// Build the client bundle (e.g. Retro)
 		clientResult = await esbuild.build({
-			...commonOptions, // Takes precedence
-			...config,        // Can override common options
+			...internalOptions,   // Takes precedence
+			...userConfiguration, // Can override internal options
 
 			// Global variables
 			define: {
-				...commonOptions.define, // Takes precedence
-				...config.define,        // Can override common options
+				...internalOptions.define,   // Takes precedence
+				...userConfiguration.define, // Can override internal options
 			},
 
 			// Entry point for the bundle
@@ -163,11 +166,11 @@ async function build(): Promise<BackendResponse> {
 
 			// Expose React APIs as global variables (defined on `window`). See
 			// `external` for more context.
-			inject: [path.join(__dirname, "scripts/require.js")], // Add React APIs
+			inject: [path.join(__dirname, "scripts/require.js")],
 
 			loader: {
-				...commonOptions.loader, // Takes precedence
-				...config.loader,        // Can override common options
+				...internalOptions.loader,   // Takes precedence
+				...userConfiguration.loader, // Can override common options
 			},
 		})
 		buildResult.Metafile.Client = clientResult.metafile!

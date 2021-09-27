@@ -44,14 +44,14 @@ func setEnvVars() {
 	if env := os.Getenv("NODE_ENV"); env != "" {
 		os.Setenv("NODE_ENV", env)
 	} else {
-		// TODO: `development` and `production` aren't configurable presently
+		// TODO: Not configurable yet
 		os.Setenv("NODE_ENV", "development")
 	}
 	// RETRO_CMD=...
 	if env := os.Getenv("RETRO_CMD"); env != "" {
 		os.Setenv("RETRO_CMD", env)
 	} else {
-		// TODO: `dev` and `build` aren't configurable presently
+		// TODO: Not configurable yet
 		os.Setenv("RETRO_CMD", "dev")
 	}
 	// RETRO_WWW_DIR=...
@@ -87,9 +87,7 @@ func main() {
 	var (
 		// CLI arguments
 		cmdArgs = []string{"node", "backend.esbuild.js"}
-
-		// String CLI arguments
-		cmdStr = func() string {
+		cmdStr  = func() string {
 			var _cmdStr string
 			for argIndex, arg := range cmdArgs {
 				if argIndex > 0 {
@@ -113,7 +111,6 @@ func main() {
 		if stdoutLine == "<eof>" {
 			break
 		}
-		// fmt.Println(decorateStdoutLine(stdoutLine)) // DEBUG
 
 		// Unmarshal the build response
 		var buildResponse BackendResponse
@@ -129,6 +126,7 @@ func main() {
 		fmt.Println(string(byteStr))
 
 	case stderrText := <-stderr:
+		// fmt.Println(decorateStdoutLine(stdoutLine))
 		fmt.Println(decorateStderrText(stderrText))
 		break
 	}

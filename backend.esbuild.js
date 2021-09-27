@@ -17,7 +17,7 @@ var __toModule = (module2) => {
   return __reExport(__markAsModule(__defProp(module2 != null ? __create(__getProtoOf(module2)) : {}, "default", module2 && module2.__esModule && "default" in module2 ? { get: () => module2.default, enumerable: true } : { value: module2, enumerable: true })), module2);
 };
 var esbuild = __toModule(require("esbuild"));
-var fs = __toModule(require("fs"));
+var fsPromises = __toModule(require("fs/promises"));
 var path = __toModule(require("path"));
 const readline = (() => {
   async function* createReadlineGenerator() {
@@ -37,31 +37,35 @@ function InternalError(returnType) {
 }
 const NODE_ENV = process.env["NODE_ENV"] ?? InternalError("");
 const RETRO_CMD = process.env["RETRO_CMD"] ?? InternalError("");
+const RETRO_SSG = process.env["RETRO_SSG"] ?? InternalError("");
 const RETRO_WWW_DIR = process.env["RETRO_WWW_DIR"] ?? InternalError("");
 const RETRO_SRC_DIR = process.env["RETRO_SRC_DIR"] ?? InternalError("");
 const RETRO_OUT_DIR = process.env["RETRO_OUT_DIR"] ?? InternalError("");
 let vendorResult = null;
 let clientResult = null;
-const commonOptions = {
+const internalOptions = {
   bundle: true,
   define: {
     "process.env.NODE_ENV": JSON.stringify(NODE_ENV),
     "process.env.RETRO_CMD": JSON.stringify(RETRO_CMD),
+    "process.env.RETRO_SSG": JSON.stringify(RETRO_SSG),
     "process.env.RETRO_WWW_DIR": JSON.stringify(RETRO_WWW_DIR),
     "process.env.RETRO_SRC_DIR": JSON.stringify(RETRO_SRC_DIR),
     "process.env.RETRO_OUT_DIR": JSON.stringify(RETRO_OUT_DIR)
   },
   entryNames: NODE_ENV !== "production" ? void 0 : "[dir]/[name]__[hash]",
-  loader: { ".js": "jsx" },
+  loader: {
+    ".js": "jsx"
+  },
   logLevel: "silent",
   metafile: true,
   minify: NODE_ENV === "production",
   outdir: RETRO_OUT_DIR,
   sourcemap: true
 };
-async function resolveRetroConfig() {
+async function resolveUserConfiguration() {
   try {
-    await fs.promises.stat("retro.config.js");
+    await fsPromises.stat("retro.config.js");
   } catch {
     return {};
   }
@@ -77,21 +81,21 @@ async function build() {
     Warnings: [],
     Errors: []
   };
-  const config = await resolveRetroConfig();
+  const userConfiguration = await resolveUserConfiguration();
   try {
     vendorResult = await esbuild.build({
-      ...commonOptions,
+      ...internalOptions,
       entryPoints: {
         "vendor": path.join(__dirname, "scripts/vendor.js")
       }
     });
     buildResult.Metafile.Vendor = vendorResult.metafile;
     clientResult = await esbuild.build({
-      ...commonOptions,
-      ...config,
+      ...internalOptions,
+      ...userConfiguration,
       define: {
-        ...commonOptions.define,
-        ...config.define
+        ...internalOptions.define,
+        ...userConfiguration.define
       },
       entryPoints: {
         "client": path.join(RETRO_SRC_DIR, "index.js")
@@ -104,8 +108,8 @@ async function build() {
       incremental: NODE_ENV === "development",
       inject: [path.join(__dirname, "scripts/require.js")],
       loader: {
-        ...commonOptions.loader,
-        ...config.loader
+        ...internalOptions.loader,
+        ...userConfiguration.loader
       }
     });
     buildResult.Metafile.Client = clientResult.metafile;
