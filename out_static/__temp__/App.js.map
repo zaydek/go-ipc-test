@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../src/App.js", "../../scripts/require.js"],
-  "sourcesContent": ["export default function App() {\n\tconst [state, setState] = React.useState(0)\n\n\treturn (\n\t\t<div>\n\t\t\t<span>{state}</span>\n\t\t\t<button onClick={e => setState(state - 1)}>-</button>\n\t\t\t<button onClick={e => setState(state + 1)}>+</button>\n\t\t</div>\n\t)\n}\n", "window.require = function resolveVendorDependenciesAtRuntime(moduleName) {\n\tswitch (moduleName) {\n\t\tcase \"react\":\n\t\t\treturn window[\"React\"]\n\t\tcase \"react-dom\":\n\t\t\treturn window[\"ReactDOM\"]\n\t\tcase \"react-dom/server\":\n\t\t\treturn window[\"ReactDOMServer\"]\n\t\tdefault:\n\t\t\tthrow new Error(\"Internal error\")\n\t}\n}\n"],
-  "mappings": "qIAAA,2BCAA,OAAO,QAAU,SAA4C,EAAY,CACxE,OAAQ,OACF,QACJ,MAAO,QAAO,UACV,YACJ,MAAO,QAAO,aACV,mBACJ,MAAO,QAAO,uBAEd,KAAM,IAAI,OAAM,oBDTJ,YAAe,CAC7B,GAAM,CAAC,EAAO,GAAY,MAAM,SAAS,GAEzC,MACC,qBAAC,MAAD,KACC,oBAAC,OAAD,KAAO,GACP,oBAAC,SAAD,CAAQ,QAAS,GAAK,EAAS,EAAQ,IAAI,KAC3C,oBAAC,SAAD,CAAQ,QAAS,GAAK,EAAS,EAAQ,IAAI",
-  "names": []
-}

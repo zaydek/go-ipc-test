@@ -6,4 +6,5 @@ node_modules/
 
 # Production
 out/
+out_static/
 *.esbuild.*

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	filepath "path"
 	"strings"
 
 	"github.com/evanw/esbuild/pkg/api"
@@ -52,13 +53,38 @@ func decorateStderrText(stderrText string) string {
 	return decoratedErrStr
 }
 
+var (
+	NODE_ENV      = ""
+	RETRO_CMD     = ""
+	RETRO_WWW_DIR = ""
+	RETRO_SRC_DIR = ""
+	RETRO_OUT_DIR = ""
+)
+
 func setEnvVars(commandMode CommandMode) {
-	setEnvVar := func(envName, fallbackValue string) {
-		if env := os.Getenv(envName); env != "" {
-			os.Setenv(envName, env)
-		} else {
-			os.Setenv(envName, fallbackValue)
+	setEnvVar := func(envKey, fallbackValue string) {
+		envValue := os.Getenv(envKey)
+		if envValue == "" {
+			envValue = fallbackValue
 		}
+		switch envKey {
+		case "NODE_ENV":
+			NODE_ENV = envValue
+		case "RETRO_CMD":
+			RETRO_CMD = envValue
+		case "RETRO_WWW_DIR":
+			RETRO_WWW_DIR = envValue
+		case "RETRO_SRC_DIR":
+			RETRO_SRC_DIR = envValue
+		case "RETRO_OUT_DIR":
+			RETRO_OUT_DIR = envValue
+		}
+		os.Setenv(envKey, envValue)
+		// if env := os.Getenv(envKey); env != "" {
+		// 	os.Setenv(envKey, env)
+		// } else {
+		// 	os.Setenv(envKey, fallbackValue)
+		// }
 	}
 	switch commandMode {
 	case ModeDev:
@@ -151,6 +177,10 @@ func (r *RetroApp) BuildStatic() {
 	if err := warmUp(ModeBuildStatic); err != nil {
 		panic(fmt.Sprintf("warmUp: %s", err))
 	}
+
+	// fmt.Println(RETRO_OUT_DIR)
+	// return
+
 	stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
 	if err != nil {
 		panic(fmt.Sprintf("ipc.NewCommand: %s", err))
@@ -175,17 +205,32 @@ loop:
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
-				byteStr, err := json.MarshalIndent(buildStaticResponse, "", "  ")
-				if err != nil {
-					panic(fmt.Sprintf("json.MarshalIndent: %s", err))
-				}
-				fmt.Println(string(byteStr))
+				// byteStr, err := json.MarshalIndent(buildStaticResponse, "", "  ")
+				// if err != nil {
+				// 	panic(fmt.Sprintf("json.MarshalIndent: %s", err))
+				// }
+				// fmt.Println(string(byteStr))
 				stdin <- "DONE"
 				break loop
 			}
 		case stderrText := <-stderr:
 			fmt.Println(decorateStderrText(stderrText))
 			break loop
+		}
+	}
+
+	const (
+		MODE_DIR  = 0755
+		MODE_FILE = 0644
+	)
+
+	for _, route := range buildStaticResponse.Data.Routes {
+		if err := os.WriteFile(
+			filepath.Join(RETRO_OUT_DIR+"_static", route.Route.Filename),
+			[]byte(route.Route.HTML),
+			MODE_FILE,
+		); err != nil {
+			panic(fmt.Sprintf("os.WriteFile: %s", err))
 		}
 	}
 }

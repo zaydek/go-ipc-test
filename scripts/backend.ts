@@ -303,7 +303,7 @@ async function buildStatic() /* : Promise<BackendResponse> */ {
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		${head}
+${head}
 	</head>
 	<body>
 		<div id="root">${ReactDOMServer.renderToString(React.createElement(BundledAppDefault, route.props))}</div>
