@@ -1,3 +1,4 @@
+# --define:window='{ "location": { "pathname": "/" } }'
 all:
 	npx esbuild scripts/backend.ts \
 		--format=cjs \

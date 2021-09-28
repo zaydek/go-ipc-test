@@ -23,6 +23,20 @@ type BuildResponse struct {
 	}
 }
 
+type BuildStaticResponse struct {
+	Kind string
+	Data struct {
+		Routes []struct {
+			Route struct {
+				Filename string
+				HTML     string
+			}
+			MeasuredMs int
+		}
+		MeasuredMs int
+	}
+}
+
 func decorateStdoutLine(stdoutLine string) string {
 	return fmt.Sprintf("%s  %s", terminal.BoldCyan("stdout"), stdoutLine)
 }
@@ -67,7 +81,7 @@ func setEnvVars(commandMode CommandMode) {
 	setEnvVar("RETRO_OUT_DIR", "out")
 }
 
-func initialize(commandMode CommandMode) error {
+func warmUp(commandMode CommandMode) error {
 	setEnvVars(commandMode)
 	if err := os.RemoveAll(os.Getenv("RETRO_OUT_DIR")); err != nil {
 		return err
@@ -89,27 +103,27 @@ var (
 	ModeBuildStatic CommandMode = "build_static"
 )
 
-func (r *RetroApp) RunDevCommand() {
-
-	if err := initialize(ModeDev); err != nil {
-		panic(fmt.Sprintf("initialize: %s", err))
+func (r *RetroApp) Build() {
+	if err := warmUp(ModeBuild); err != nil {
+		panic(fmt.Sprintf("warmUp: %s", err))
 	}
 	stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
 	if err != nil {
 		panic(fmt.Sprintf("ipc.NewCommand: %s", err))
 	}
 
-	stdin <- "build"
-	defer func() {
-		stdin <- "done"
-	}()
+	// defer func() {
+	// 	stdin <- "done"
+	// }()
 
 	var buildResponse BuildResponse
+
+	stdin <- "BUILD"
 loop:
 	for {
 		select {
 		case stdoutLine := <-stdout:
-			if stdoutLine == "build-done" {
+			if stdoutLine == "BUILD_DONE" {
 				break loop
 			}
 			if err := json.Unmarshal([]byte(stdoutLine), &buildResponse); err != nil {
@@ -117,7 +131,7 @@ loop:
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
-				stdin <- "done"
+				stdin <- "DONE"
 				break loop
 			}
 		case stderrText := <-stderr:
@@ -133,13 +147,56 @@ loop:
 	// fmt.Println(string(byteStr))
 }
 
+func (r *RetroApp) BuildStatic() {
+	if err := warmUp(ModeBuildStatic); err != nil {
+		panic(fmt.Sprintf("warmUp: %s", err))
+	}
+	stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
+	if err != nil {
+		panic(fmt.Sprintf("ipc.NewCommand: %s", err))
+	}
+
+	var buildStaticResponse BuildStaticResponse
+
+	stdin <- "BUILD_STATIC"
+	// defer func() {
+	// 	stdin <- "DONE"
+	// }()
+
+loop:
+	for {
+		select {
+		case stdoutLine := <-stdout:
+			if stdoutLine == "BUILD_STATIC_DONE" {
+				break loop
+			}
+			if err := json.Unmarshal([]byte(stdoutLine), &buildStaticResponse); err != nil {
+				// Propagate JSON unmarshal errors as stdout for the user, e.g.
+				// debugging Retro plugins
+				fmt.Println(decorateStdoutLine(stdoutLine))
+			} else {
+				byteStr, err := json.MarshalIndent(buildStaticResponse, "", "  ")
+				if err != nil {
+					panic(fmt.Sprintf("json.MarshalIndent: %s", err))
+				}
+				fmt.Println(string(byteStr))
+				stdin <- "DONE"
+				break loop
+			}
+		case stderrText := <-stderr:
+			fmt.Println(decorateStderrText(stderrText))
+			break loop
+		}
+	}
+}
+
 func main() {
 	retro := &RetroApp{}
-	retro.RunDevCommand()
+	retro.BuildStatic()
 }
 
 // func main() {
-// 	initialize()
+// 	warmUp()
 //
 // 	var (
 // 		// CLI arguments
