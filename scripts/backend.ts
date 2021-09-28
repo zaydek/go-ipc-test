@@ -103,8 +103,7 @@ async function resolveUserConfiguration(): Promise<esbuild.BuildOptions> {
 	} catch {
 		return {}
 	}
-	const retroConfigFilename = path.join(process.cwd(), "retro.config.js")
-	return require(retroConfigFilename)
+	return require(path.join(process.cwd(), "retro.config.js"))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +131,7 @@ async function build(): Promise<BackendResponse> {
 
 			// Entry point for the bundle
 			entryPoints: {
-				"vendor": path.join(__dirname, "scripts/vendor.js"),
+				"vendor": path.join(__dirname, "vendor.js"),
 			},
 		})
 		buildResult.Metafile.Vendor = vendorResult.metafile!
@@ -166,7 +165,7 @@ async function build(): Promise<BackendResponse> {
 
 			// Expose React APIs as global variables (defined on `window`). See
 			// `external` for more context.
-			inject: [path.join(__dirname, "scripts/require.js")],
+			inject: [path.join(__dirname, "require.js")],
 
 			loader: {
 				...internalOptions.loader,   // Takes precedence
@@ -259,6 +258,8 @@ async function main(): Promise<void> {
 						} as Message),
 					)
 					break
+				case "done":
+					process.exit(0)
 				default:
 					throw new Error("Internal error")
 			}

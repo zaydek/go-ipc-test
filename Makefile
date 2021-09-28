@@ -1,8 +1,8 @@
 all:
-	npx esbuild backend.ts \
+	npx esbuild scripts/backend.ts \
 		--format=cjs \
 		--log-level=warning \
-		--outfile=backend.esbuild.js \
+		--outfile=scripts/backend.esbuild.js \
 		--sourcemap
 
 clean:

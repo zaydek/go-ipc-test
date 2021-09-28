@@ -1,3 +1,6 @@
+// import "esbuild:test-plugin"
+import "env"
+
 import "./index.css"
 
 function App() {

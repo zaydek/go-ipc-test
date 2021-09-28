@@ -61,6 +61,25 @@ const RETRO_OUT_DIR_STATIC = process.env["RETRO_OUT_DIR"] + "_static"
 //     </html>
 //   `
 
+// TODO: In theory we should be able to read this from the user's
+// `www/index.html`
+// TODO: This should be a structured parameter provided by Retro, i.e. the
+// head and body content. The HTML string can be created in the Node.js
+// runtime.
+// 		const html = `<!DOCTYPE html>
+// <html lang="en">
+//   <head>
+// 		${RetroHeadPart1}
+// 		${head}
+// 		${RetroHeadPart1}
+// 	</head>
+//   <body>
+//     <div id="root">${ReactDOMServer.renderToString(React.createElement(BundledAppDefault, route.props))}</div>
+//     ${RetroScripts}
+//   </body>
+// </html>
+// ` // Add EOF
+
 async function main() {
 	const userConfiguration = await resolveUserConfiguration()
 
@@ -148,25 +167,6 @@ async function main() {
 			.map(line => "\t\t" + line.trim())
 			.join("\n")
 
-		// TODO: In theory we should be able to read this from the user's
-		// `www/index.html`
-		// TODO: This should be a structured parameter provided by Retro, i.e. the
-		// head and body content. The HTML string can be created in the Node.js
-		// runtime.
-		// 		const html = `<!DOCTYPE html>
-		// <html lang="en">
-		//   <head>
-		// 		${RetroHeadPart1}
-		// 		${head}
-		// 		${RetroHeadPart1}
-		// 	</head>
-		//   <body>
-		//     <div id="root">${ReactDOMServer.renderToString(React.createElement(BundledAppDefault, route.props))}</div>
-		//     ${RetroScripts}
-		//   </body>
-		// </html>
-		// ` // Add EOF
-
 		// Derive the filename from the path
 		const filename = route.path.endsWith("/")
 			? route.path + "index.html"
@@ -207,23 +207,7 @@ async function main() {
 		// 		...renderedRoutes[renderedRoutes.length - 1],
 		// 	},
 		// })
-
-		// // For simplicity sake, Node.js writes routes to the filesystem. Read /
-		// // write operations would usually be delegated to Go for superior error-
-		// // handling and performance characteristics, but because of the for-loop,
-		// // it's easier to write files here.
-
-		// // TODO: We probably want to communicate this back to Go so Go can handle
-		// // the writing to disk, error-handling, and decorated messages
-		// await fsPromises.writeFile(path.join(RETRO_OUT_DIR_STATIC, filename), html)
-		// console.log(`ok - ${route.path}`)
 	}
-
-	// // TODO: It looks like right now are are unintentionally bundling `.js` and
-	// // `.css` files or similar. Is there a way to communicate to esbuild we only
-	// // want to bundle some files?
-	// await fsPromises.unlink("out-ssr/App.js")
-	// await fsPromises.unlink("out-ssr/App.css")
 
 	console.log({
 		Kind: "static-routes-done",

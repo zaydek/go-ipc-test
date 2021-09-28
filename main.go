@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -12,7 +11,7 @@ import (
 	"github.com/zaydek/go-ipc-test/pkg/terminal"
 )
 
-type BackendResponse struct {
+type BuildResponse struct {
 	Kind string
 	Data struct {
 		Metafile struct {
@@ -39,95 +38,153 @@ func decorateStderrText(stderrText string) string {
 	return decoratedErrStr
 }
 
-func setEnvVars() {
-	// NODE_ENV=...
-	if env := os.Getenv("NODE_ENV"); env != "" {
-		os.Setenv("NODE_ENV", env)
-	} else {
-		// TODO: Not configurable yet
-		os.Setenv("NODE_ENV", "development")
+func setEnvVars(commandMode CommandMode) {
+	setEnvVar := func(envName, fallbackValue string) {
+		if env := os.Getenv(envName); env != "" {
+			os.Setenv(envName, env)
+		} else {
+			os.Setenv(envName, fallbackValue)
+		}
 	}
-	// RETRO_CMD=...
-	if env := os.Getenv("RETRO_CMD"); env != "" {
-		os.Setenv("RETRO_CMD", env)
-	} else {
-		// TODO: Not configurable yet
-		os.Setenv("RETRO_CMD", "dev")
+	switch commandMode {
+	case ModeDev:
+		setEnvVar("NODE_ENV", "development")
+	case ModeBuild:
+		fallthrough
+	case ModeBuildStatic:
+		setEnvVar("NODE_ENV", "production")
 	}
-	// RETRO_WWW_DIR=...
-	if env := os.Getenv("RETRO_WWW_DIR"); env != "" {
-		os.Setenv("RETRO_WWW_DIR", env)
-	} else {
-		os.Setenv("RETRO_WWW_DIR", "www")
+	switch commandMode {
+	case ModeDev:
+		setEnvVar("RETRO_CMD", "dev")
+	case ModeBuild:
+		setEnvVar("RETRO_CMD", "build")
+	case ModeBuildStatic:
+		setEnvVar("RETRO_CMD", "build_static")
 	}
-	// RETRO_SRC_DIR=...
-	if env := os.Getenv("RETRO_SRC_DIR"); env != "" {
-		os.Setenv("RETRO_SRC_DIR", env)
-	} else {
-		os.Setenv("RETRO_SRC_DIR", "src")
-	}
-	// RETRO_OUT_DIR=...
-	if env := os.Getenv("RETRO_OUT_DIR"); env != "" {
-		os.Setenv("RETRO_OUT_DIR", env)
-	} else {
-		os.Setenv("RETRO_OUT_DIR", "out")
-	}
+	setEnvVar("RETRO_WWW_DIR", "www")
+	setEnvVar("RETRO_SRC_DIR", "src")
+	setEnvVar("RETRO_OUT_DIR", "out")
 }
 
-func initialize() {
-	setEnvVars()
+func initialize(commandMode CommandMode) error {
+	setEnvVars(commandMode)
 	if err := os.RemoveAll(os.Getenv("RETRO_OUT_DIR")); err != nil {
-		panic(err)
+		return err
 	}
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type RetroApp struct {
+	// ...
+}
+
+type CommandMode = string
+
+var (
+	ModeDev         CommandMode = "dev"
+	ModeBuild       CommandMode = "build"
+	ModeBuildStatic CommandMode = "build_static"
+)
+
+func (r *RetroApp) RunDevCommand() {
+
+	if err := initialize(ModeDev); err != nil {
+		panic(fmt.Sprintf("initialize: %s", err))
+	}
+	stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
+	if err != nil {
+		panic(fmt.Sprintf("ipc.NewCommand: %s", err))
+	}
+
+	stdin <- "build"
+	defer func() {
+		stdin <- "done"
+	}()
+
+	var buildResponse BuildResponse
+loop:
+	for {
+		select {
+		case stdoutLine := <-stdout:
+			if stdoutLine == "build-done" {
+				break loop
+			}
+			if err := json.Unmarshal([]byte(stdoutLine), &buildResponse); err != nil {
+				// Propagate JSON unmarshal errors as stdout for the user, e.g.
+				// debugging Retro plugins
+				fmt.Println(decorateStdoutLine(stdoutLine))
+			} else {
+				stdin <- "done"
+				break loop
+			}
+		case stderrText := <-stderr:
+			fmt.Println(decorateStderrText(stderrText))
+			break loop
+		}
+	}
+
+	// byteStr, err := json.MarshalIndent(buildResponse, "", "  ")
+	// if err != nil {
+	// 	panic(fmt.Sprintf("json.MarshalIndent: %s", err))
+	// }
+	// fmt.Println(string(byteStr))
 }
 
 func main() {
-	initialize()
-
-	var (
-		// CLI arguments
-		cmdArgs = []string{"node", "backend.esbuild.js"}
-		cmdStr  = func() string {
-			var _cmdStr string
-			for argIndex, arg := range cmdArgs {
-				if argIndex > 0 {
-					_cmdStr += " "
-				}
-				_cmdStr += arg
-			}
-			return _cmdStr
-		}()
-	)
-
-	stdin, stdout, stderr, err := ipc.NewCommand(cmdArgs...)
-	if err != nil {
-		log.Fatalf("ipc.NewCommand: %s\n", err)
-	}
-
-	fmt.Println(terminal.Dimf("%% %s", cmdStr))
-	stdin <- "build"
-	select {
-	case stdoutLine := <-stdout:
-		if stdoutLine == "<eof>" {
-			break
-		}
-
-		// Unmarshal the build response
-		var buildResponse BackendResponse
-		if err := json.Unmarshal([]byte(stdoutLine), &buildResponse); err != nil {
-			panic(err)
-		}
-
-		// Marshal the build response
-		byteStr, err := json.MarshalIndent(buildResponse, "", "  ")
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(string(byteStr))
-
-	case stderrText := <-stderr:
-		// fmt.Println(decorateStdoutLine(stdoutLine))
-		fmt.Println(decorateStderrText(stderrText))
-		break
-	}
+	retro := &RetroApp{}
+	retro.RunDevCommand()
 }
+
+// func main() {
+// 	initialize()
+//
+// 	var (
+// 		// CLI arguments
+// 		cmdArgs = []string{"node", "backend.esbuild.js"}
+// 		cmdStr  = func() string {
+// 			var _cmdStr string
+// 			for argIndex, arg := range cmdArgs {
+// 				if argIndex > 0 {
+// 					_cmdStr += " "
+// 				}
+// 				_cmdStr += arg
+// 			}
+// 			return _cmdStr
+// 		}()
+// 	)
+//
+// 	stdin, stdout, stderr, err := ipc.NewCommand(cmdArgs...)
+// 	if err != nil {
+// 		log.Fatalf("ipc.NewCommand: %s\n", err)
+// 	}
+//
+// 	// fmt.Println(terminal.Dimf("%% %s", cmdStr))
+// 	stdin <- "build"
+// 	select {
+// 	case stdoutLine := <-stdout:
+// 		if stdoutLine == "<eof>" {
+// 			break
+// 		}
+//
+// 		// Unmarshal the build response
+// 		var buildResponse BackendResponse
+// 		if err := json.Unmarshal([]byte(stdoutLine), &buildResponse); err != nil {
+// 			panic(err)
+// 		}
+//
+// 		// Marshal the build response
+// 		byteStr, err := json.MarshalIndent(buildResponse, "", "  ")
+// 		if err != nil {
+// 			panic(err)
+// 		}
+// 		fmt.Println(string(byteStr))
+//
+// 	case stderrText := <-stderr:
+// 		// fmt.Println(decorateStdoutLine(stdoutLine))
+// 		fmt.Println(decorateStderrText(stderrText))
+// 		break
+// 	}
+// }
