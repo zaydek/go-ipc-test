@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zaydek/go-ipc-test/pkg/expect"
+	"github.com/zaydek/go-ipc-test/go/pkg/expect"
 )
 
 func TestCommandFooFailure(t *testing.T) {

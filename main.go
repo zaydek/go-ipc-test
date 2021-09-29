@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/zaydek/go-ipc-test/cmd/retro"
+	"github.com/zaydek/go-ipc-test/go/cmd/retro"
 )
 
 func main() {

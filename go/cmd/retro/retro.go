@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zaydek/go-ipc-test/pkg/ipc"
+	"github.com/zaydek/go-ipc-test/go/pkg/ipc"
 )
 
 type CommandMode = string
@@ -219,7 +219,7 @@ func (r *RetroApp) initialize() error {
 // }
 
 func (r *RetroApp) Build() error {
-	stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
+	stdin, stdout, stderr, err := ipc.NewCommand("node", "node/scripts/backend.esbuild.js")
 	if err != nil {
 		return fmt.Errorf("ipc.NewCommand: %w", err)
 	}
@@ -267,7 +267,7 @@ loop:
 ////////////////////////////////////////////////////////////////////////////////
 
 func (r *RetroApp) BuildStatic() error {
-	stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
+	stdin, stdout, stderr, err := ipc.NewCommand("node", "node/scripts/backend.esbuild.js")
 	if err != nil {
 		return fmt.Errorf("ipc.NewCommand: %w", err)
 	}

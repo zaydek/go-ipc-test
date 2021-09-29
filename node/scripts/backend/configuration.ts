@@ -58,7 +58,7 @@ export const commonConfiguration: esbuild.BuildOptions = {
 	sourcemap: true,
 }
 
-export const buildClientConfiguration = userConfiguration => ({
+export const buildClientConfiguration = (userConfiguration: esbuild.BuildOptions): esbuild.BuildOptions => ({
 	...commonConfiguration,
 	...userConfiguration,
 

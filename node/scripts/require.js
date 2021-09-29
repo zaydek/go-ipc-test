@@ -1,5 +1,5 @@
 if (typeof window === "undefined") {
-	// ...
+	// FIXME
 } else {
 	window.require = function resolveVendorDependenciesAtRuntime(moduleName) {
 		switch (moduleName) {

@@ -2,16 +2,16 @@
 # --define:window='{ "location": { "pathname": "/" } }'
 
 all:
-	npx esbuild scripts/backend/backend.ts \
+	npx esbuild node/scripts/backend/backend.ts \
 		--bundle \
 		--external:esbuild \
 		--format=cjs \
 		--log-level=warning \
-		--outfile=scripts/backend.esbuild.js \
+		--outfile=node/scripts/backend.esbuild.js \
 		--platform=node \
 		--sourcemap
 
 clean:
 	rm \
-		scripts/backend.esbuild.js \
-		scripts/backend.esbuild.js.map
+		node/scripts/backend.esbuild.js \
+		node/scripts/backend.esbuild.js.map

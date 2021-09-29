@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zaydek/go-ipc-test/pkg/terminal"
+	"github.com/zaydek/go-ipc-test/go/pkg/terminal"
 )
 
 func decorateStdoutLine(stdoutLine string) string {
