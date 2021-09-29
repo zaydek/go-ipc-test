@@ -136,6 +136,12 @@ async function rebuildClientBundle(): Promise<t.BundleResult> {
 	return client
 }
 
+// This becomes a Node.js IPC process, from Go to JavaScript. Messages are sent
+// as plaintext strings (actions) and received as JSON-encoded payloads.
+//
+// stdout messages that aren't encoded should be logged regardless because
+// plugins can implement logging. stderr messages are exceptions and should
+// terminate the Node.js runtime.
 async function main(): Promise<void> {
 	// Warm up esbuild
 	esbuild.initialize({})
@@ -153,15 +159,15 @@ async function main(): Promise<void> {
 						} as t.Message),
 					)
 					break
-				// case "BUILD_STATIC":
-				// 	const buildStaticResult = await buildAllStatic()
-				// 	console.log(
-				// 		JSON.stringify({
-				// 			Kind: "BUILD_STATIC_DONE",
-				// 			Data: buildStaticResult,
-				// 		} as t.Message),
-				// 	)
-				// 	break
+				case "BUILD_STATIC":
+					const buildStaticResult = await buildAllStatic()
+					console.log(
+						JSON.stringify({
+							Kind: "BUILD_STATIC_DONE",
+							Data: buildStaticResult,
+						} as t.Message),
+					)
+					break
 				case "REBUILD_CLIENT":
 					const clientRebuildResult = await rebuildClientBundle()
 					console.log(
@@ -171,7 +177,9 @@ async function main(): Promise<void> {
 						} as t.Message),
 					)
 					break
-				case "DONE":
+				case "END_EARLY":
+					process.exit(1)
+				case "END":
 					process.exit(0)
 				default:
 					throw new Error("Internal error")

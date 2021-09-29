@@ -12,10 +12,14 @@ import (
 	"github.com/zaydek/go-ipc-test/pkg/terminal"
 )
 
+////////////////////////////////////////////////////////////////////////////////
+
 const (
 	MODE_DIR  = 0755
 	MODE_FILE = 0644
 )
+
+////////////////////////////////////////////////////////////////////////////////
 
 type BundleResult struct {
 	Metafile map[string]interface{}
@@ -23,25 +27,27 @@ type BundleResult struct {
 	Errors   []api.Message
 }
 
-type BackendResponse struct {
+type BuildResponse struct {
 	Kind string
 	Data []BundleResult
 }
 
-// // TODO
-// type BuildStaticResponse struct {
-// 	Kind string
-// 	Data struct {
-// 		Routes []struct {
-// 			Route struct {
-// 				Filename string
-// 				HTML     string
-// 			}
-// 			MeasuredMs int
-// 		}
-// 		MeasuredMs int
-// 	}
-// }
+// TODO: This likely needs to embed Build Response too or similar
+type BuildStaticResponse struct {
+	Kind string
+	Data struct {
+		Routes []struct {
+			Route struct {
+				Filename string
+				HTML     string
+			}
+			MeasuredMs int
+		}
+		MeasuredMs int
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 func decorateStdoutLine(stdoutLine string) string {
 	return fmt.Sprintf("%s  %s", terminal.BoldCyan("stdout"), stdoutLine)
@@ -85,11 +91,6 @@ func setEnvVars(commandMode CommandMode) {
 			RETRO_OUT_DIR = envValue
 		}
 		os.Setenv(envKey, envValue)
-		// if env := os.Getenv(envKey); env != "" {
-		// 	os.Setenv(envKey, env)
-		// } else {
-		// 	os.Setenv(envKey, fallbackValue)
-		// }
 	}
 	switch commandMode {
 	case ModeDev:
@@ -116,16 +117,14 @@ func warmUp(commandMode CommandMode) error {
 	// Set environmental and global Go variables
 	setEnvVars(commandMode)
 
-	// Remove `out` from previous builds
+	// Remove previous build artifacts
 	if err := os.RemoveAll(RETRO_OUT_DIR); err != nil {
-		return err
+		return fmt.Errorf("os.RemoveAll: %w", err)
 	}
 
-	// Remove `out_static` from previous static builds
-	if commandMode == ModeBuildStatic {
-		if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "_static")); err != nil {
-			return err
-		}
+	// Remove previous static build artifacts
+	if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "_static")); err != nil {
+		return fmt.Errorf("os.RemoveAll: %w", err)
 	}
 
 	// ERR_MISSING_WWW_INDEX_HTML
@@ -177,7 +176,7 @@ func warmUp(commandMode CommandMode) error {
 
 	// Check for the presence of `www/index.html`
 	if _, err := os.Stat(filepath.Join(RETRO_WWW_DIR, "index.html")); err != nil {
-		panic(fmt.Sprintf("os.Stat: %s", err))
+		return fmt.Errorf("os.Stat: %w", err)
 	} else if os.IsNotExist(err) {
 		fmt.Fprintln(
 			os.Stderr,
@@ -188,7 +187,7 @@ func warmUp(commandMode CommandMode) error {
 
 	// Check for the presence of `src/index.js`
 	if _, err := os.Stat(filepath.Join(RETRO_SRC_DIR, "index.js")); err != nil {
-		panic(fmt.Sprintf("os.Stat: %s", err))
+		return fmt.Errorf("os.Stat: %w", err)
 	} else if os.IsNotExist(err) {
 		fmt.Fprintln(
 			os.Stderr,
@@ -199,7 +198,7 @@ func warmUp(commandMode CommandMode) error {
 
 	// Check for the presence of `src/App.js`
 	if _, err := os.Stat(filepath.Join(RETRO_SRC_DIR, "App.js")); err != nil {
-		panic(fmt.Sprintf("os.Stat: %s", err))
+		return fmt.Errorf("os.Stat: %w", err)
 	} else if os.IsNotExist(err) {
 		fmt.Fprintln(
 			os.Stderr,
@@ -210,7 +209,7 @@ func warmUp(commandMode CommandMode) error {
 
 	// Check for the presence of `routes.js`
 	if _, err := os.Stat("routes.js"); err != nil {
-		panic(fmt.Sprintf("os.Stat: %s", err))
+		return fmt.Errorf("os.Stat: %w", err)
 	} else if os.IsNotExist(err) {
 		fmt.Fprintln(
 			os.Stderr,
@@ -241,6 +240,19 @@ func warmUp(commandMode CommandMode) error {
 	return nil
 }
 
+func coolDown(commandMode CommandMode) error {
+	// Remove the temporary directory
+	if commandMode == ModeBuildStatic {
+		if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR+"_static", "__temp__")); err != nil {
+			return fmt.Errorf("os.RemoveAll: %w", err)
+		}
+	}
+
+	// ...
+
+	return nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 type RetroApp struct {
@@ -255,19 +267,19 @@ var (
 	ModeBuildStatic CommandMode = "build_static"
 )
 
-func (r *RetroApp) Build() {
+////////////////////////////////////////////////////////////////////////////////
+
+func (r *RetroApp) Build() error {
 	if err := warmUp(ModeBuild); err != nil {
-		panic(fmt.Sprintf("warmUp: %s", err))
+		return fmt.Errorf("warmUp: %w", err)
 	}
+
 	stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
 	if err != nil {
-		panic(fmt.Sprintf("ipc.NewCommand: %s", err))
+		return fmt.Errorf("ipc.NewCommand: %w", err)
 	}
 
-	// var vendorBundleResponse BundleResult
-	// var clientBundleResponse BundleResult
-
-	var backendResponse BackendResponse
+	var buildResponse BuildResponse
 
 	stdin <- "BUILD"
 loop:
@@ -277,138 +289,116 @@ loop:
 			if stdoutLine == "BUILD_DONE" {
 				break loop
 			}
-			if err := json.Unmarshal([]byte(stdoutLine), &backendResponse); err != nil {
+			if err := json.Unmarshal([]byte(stdoutLine), &buildResponse); err != nil {
 				// Propagate JSON unmarshal errors as stdout for the user, e.g.
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
-				stdin <- "DONE"
+				stdin <- "END"
 				break loop
 			}
 		case stderrText := <-stderr:
+			stdin <- "END_EARLY"
 			fmt.Println(decorateStderrText(stderrText))
 			break loop
 		}
 	}
 
-	// DEBUG: Log the result for debugging
-	byteStr, err := json.MarshalIndent(backendResponse, "", "  ")
+	// DEBUG
+	byteStr, err := json.MarshalIndent(buildResponse, "", "  ")
 	if err != nil {
-		panic(fmt.Sprintf("json.MarshalIndent: %s", err))
+		return fmt.Errorf("json.MarshalIndent: %w", err)
+		// return err
 	}
 	fmt.Println(string(byteStr))
+
+	if err := coolDown(ModeBuildStatic); err != nil {
+		return fmt.Errorf("coolDown: %w", err)
+	}
+
+	return nil
 }
 
-func (r *RetroApp) BuildStatic() {
-	// if err := warmUp(ModeBuildStatic); err != nil {
-	// 	panic(fmt.Sprintf("warmUp: %s", err))
+////////////////////////////////////////////////////////////////////////////////
+
+func (r *RetroApp) BuildStatic() error {
+	if err := warmUp(ModeBuildStatic); err != nil {
+		return fmt.Errorf("warmUp: %w", err)
+	}
+
+	//////////////////////////////////////////////////////////////////////////////
+
+	stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
+	if err != nil {
+		return fmt.Errorf("ipc.NewCommand: %w", err)
+	}
+
+	var buildStaticResponse BuildStaticResponse
+
+	stdin <- "BUILD"
+loop:
+	for {
+		select {
+		case stdoutLine := <-stdout:
+			if stdoutLine == "BUILD_DONE" {
+				break loop
+			}
+			if err := json.Unmarshal([]byte(stdoutLine), &buildStaticResponse); err != nil {
+				// Propagate JSON unmarshal errors as stdout for the user, e.g.
+				// debugging Retro plugins
+				fmt.Println(decorateStdoutLine(stdoutLine))
+			} else {
+				stdin <- "END"
+				break loop
+			}
+		case stderrText := <-stderr:
+			stdin <- "END_EARLY"
+			fmt.Println(decorateStderrText(stderrText))
+			break loop
+		}
+	}
+
+	// DEBUG
+	byteStr, err := json.MarshalIndent(buildStaticResponse, "", "  ")
+	if err != nil {
+		return fmt.Errorf("json.MarshalIndent: %w", err)
+	}
+	fmt.Println(string(byteStr))
+
+	//////////////////////////////////////////////////////////////////////////////
+
+	// // Remove the temporary directory
+	// if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR+"_static", "__temp__")); err != nil {
+	// 	panic(fmt.Sprintf("os.RemoveAll: %s", err))
 	// }
-	//
-	// // fmt.Println(RETRO_OUT_DIR)
-	// // return
-	//
-	// stdin, stdout, stderr, err := ipc.NewCommand("node", "scripts/backend.esbuild.js")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("ipc.NewCommand: %s", err))
-	// }
-	//
-	// 	var buildStaticResponse BuildStaticResponse
-	//
-	// 	stdin <- "BUILD_STATIC"
-	//
-	// loop:
-	// 	for {
-	// 		select {
-	// 		case stdoutLine := <-stdout:
-	// 			if stdoutLine == "BUILD_STATIC_DONE" {
-	// 				break loop
-	// 			}
-	// 			if err := json.Unmarshal([]byte(stdoutLine), &buildStaticResponse); err != nil {
-	// 				// Propagate JSON unmarshal errors as stdout for the user, e.g.
-	// 				// debugging Retro plugins
-	// 				fmt.Println(decorateStdoutLine(stdoutLine))
-	// 			} else {
-	// 				// byteStr, err := json.MarshalIndent(buildStaticResponse, "", "  ")
-	// 				// if err != nil {
-	// 				// 	panic(fmt.Sprintf("json.MarshalIndent: %s", err))
-	// 				// }
-	// 				// fmt.Println(string(byteStr))
-	// 				stdin <- "DONE"
-	// 				break loop
-	// 			}
-	// 		case stderrText := <-stderr:
-	// 			fmt.Println(decorateStderrText(stderrText))
-	// 			break loop
-	// 		}
-	// 	}
-	//
-	// 	// Remove the temporary directory
-	// 	if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR+"_static", "__temp__")); err != nil {
-	// 		panic(fmt.Sprintf("os.RemoveAll: %s", err))
-	// 	}
-	//
-	// 	// Write HTML to the filesystem
-	// 	for _, route := range buildStaticResponse.Data.Routes {
-	// 		qualifiedFilename := filepath.Join(RETRO_OUT_DIR+"_static", route.Route.Filename)
-	// 		if err := os.WriteFile(qualifiedFilename, []byte(route.Route.HTML), MODE_FILE); err != nil {
-	// 			panic(fmt.Sprintf("os.WriteFile: %s", err))
-	// 		}
-	// 	}
+
+	// Write `out_static/*.html`
+	for _, route := range buildStaticResponse.Data.Routes {
+		qualifiedFilename := filepath.Join(RETRO_OUT_DIR+"_static", route.Route.Filename)
+		if err := os.WriteFile(qualifiedFilename, []byte(route.Route.HTML), MODE_FILE); err != nil {
+			return fmt.Errorf("os.WriteFile: %w", err)
+		}
+	}
+
+	if err := coolDown(ModeBuildStatic); err != nil {
+		return fmt.Errorf("coolDown: %w", err)
+	}
+
+	return nil
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 func main() {
 	retro := &RetroApp{}
-	// retro.BuildStatic()
-	retro.Build()
+	switch ModeBuildStatic {
+	case ModeBuild:
+		if err := retro.Build(); err != nil {
+			panic(err)
+		}
+	case ModeBuildStatic:
+		if err := retro.BuildStatic(); err != nil {
+			panic(err)
+		}
+	}
 }
-
-// func main() {
-// 	warmUp()
-//
-// 	var (
-// 		// CLI arguments
-// 		cmdArgs = []string{"node", "backend.esbuild.js"}
-// 		cmdStr  = func() string {
-// 			var _cmdStr string
-// 			for argIndex, arg := range cmdArgs {
-// 				if argIndex > 0 {
-// 					_cmdStr += " "
-// 				}
-// 				_cmdStr += arg
-// 			}
-// 			return _cmdStr
-// 		}()
-// 	)
-//
-// 	stdin, stdout, stderr, err := ipc.NewCommand(cmdArgs...)
-// 	if err != nil {
-// 		log.Fatalf("ipc.NewCommand: %s\n", err)
-// 	}
-//
-// 	// fmt.Println(terminal.Dimf("%% %s", cmdStr))
-// 	stdin <- "build"
-// 	select {
-// 	case stdoutLine := <-stdout:
-// 		if stdoutLine == "<eof>" {
-// 			break
-// 		}
-//
-// 		// Unmarshal the build response
-// 		var buildResponse BackendResponse
-// 		if err := json.Unmarshal([]byte(stdoutLine), &buildResponse); err != nil {
-// 			panic(err)
-// 		}
-//
-// 		// Marshal the build response
-// 		byteStr, err := json.MarshalIndent(buildResponse, "", "  ")
-// 		if err != nil {
-// 			panic(err)
-// 		}
-// 		fmt.Println(string(byteStr))
-//
-// 	case stderrText := <-stderr:
-// 		// fmt.Println(decorateStdoutLine(stdoutLine))
-// 		fmt.Println(decorateStderrText(stderrText))
-// 		break
-// 	}
-// }
