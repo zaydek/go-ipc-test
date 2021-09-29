@@ -8,7 +8,7 @@ type BundleResult struct {
 	Errors   []api.Message
 }
 
-type BuildAllMessage struct {
+type BuildAllDoneMessage struct {
 	Kind string
 	Data struct {
 		Vendor BundleResult
@@ -22,7 +22,14 @@ type StaticRoute struct {
 	Body     string
 }
 
-type StaticBuildAllMessage struct {
+type StaticRouteDoneMessage struct {
+	Kind string
+	Data struct {
+		StaticRoute StaticRoute
+	}
+}
+
+type StaticBuildAllDoneMessage struct {
 	Kind string
 	Data struct {
 		Vendor       BundleResult

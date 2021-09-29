@@ -130,7 +130,7 @@ func (r *RetroApp) BuildAll() error {
 		return fmt.Errorf("ipc.NewCommand: %w", err)
 	}
 
-	var buildAllMessage BuildAllMessage
+	var doneMessage BuildAllDoneMessage
 
 	stdin <- "BUILD_ALL"
 loop:
@@ -140,7 +140,7 @@ loop:
 			if stdoutLine == "BUILD_ALL__DONE" {
 				break loop
 			}
-			if err := json.Unmarshal([]byte(stdoutLine), &buildAllMessage); err != nil {
+			if err := json.Unmarshal([]byte(stdoutLine), &doneMessage); err != nil {
 				// Propagate JSON unmarshal errors as stdout for the user, e.g.
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
@@ -177,7 +177,7 @@ func (r *RetroApp) StaticBuildAll() error {
 		return fmt.Errorf("ipc.NewCommand: %w", err)
 	}
 
-	var staticBuildAllResponse StaticBuildAllMessage
+	var doneMessage StaticBuildAllDoneMessage
 
 	stdin <- "STATIC_BUILD_ALL"
 loop:
@@ -187,7 +187,7 @@ loop:
 			if stdoutLine == "STATIC_BUILD_ALL__DONE" {
 				break loop
 			}
-			if err := json.Unmarshal([]byte(stdoutLine), &staticBuildAllResponse); err != nil {
+			if err := json.Unmarshal([]byte(stdoutLine), &doneMessage); err != nil {
 				// Propagate JSON unmarshal errors as stdout for the user, e.g.
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
@@ -203,14 +203,14 @@ loop:
 	}
 
 	// // DEBUG
-	// byteStr, err := json.MarshalIndent(staticBuildAllResponse, "", "  ")
+	// byteStr, err := json.MarshalIndent(doneMessage, "", "  ")
 	// if err != nil {
 	// 	return fmt.Errorf("json.MarshalIndent: %w", err)
 	// }
 	// fmt.Println(string(byteStr))
 
 	// Save routes as pages
-	for _, route := range staticBuildAllResponse.Data.StaticRoutes {
+	for _, route := range doneMessage.Data.StaticRoutes {
 		filename := filepath.Join(RETRO_OUT_DIR, route.Filename)
 		html := `<!DOCTYPE html>
 <html lang="en">

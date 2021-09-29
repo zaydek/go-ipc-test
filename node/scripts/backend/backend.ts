@@ -190,15 +190,7 @@ async function staticBuildAll(): Promise<[t.BundleResult, t.BundleResult, t.Stat
 				),
 			),
 		}
-
 		staticRoutes.push(staticRoute)
-
-		console.log({
-			Kind: "STATIC_ROUTE__DONE",
-			Data: {
-				StaticRoute: staticRoute,
-			},
-		} as t.StaticRouteDoneMessage)
 	}
 
 	return [vendor, client, staticRoutes]
