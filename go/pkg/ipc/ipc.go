@@ -105,7 +105,7 @@ func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 			}
 			// Add a micro-delay to prevent Go from panicking:
 			//
-			//  panic: bufio.Scan: too many empty tokens without progressing
+			//   panic: bufio.Scan: too many empty tokens without progressing
 			//
 			time.Sleep(10 * time.Millisecond)
 		}

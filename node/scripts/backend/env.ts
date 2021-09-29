@@ -1,4 +1,4 @@
-// Lazily wraps `throw new Error(...)` because throws aren't legal expressions.
+// Lazily wraps `throw new Error(...)` because throws aren't legal expressions
 function InternalError<Type>(returnType: Type): Type {
 	throw new Error("Internal Error")
 	return returnType

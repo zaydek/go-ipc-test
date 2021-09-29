@@ -69,58 +69,6 @@ func warmUp(commandMode CommandMode) error {
 		return fmt.Errorf("os.RemoveAll: %w", err)
 	}
 
-	// // Remove previous static build artifacts
-	// if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "_static")); err != nil {
-	// 	return fmt.Errorf("os.RemoveAll: %w", err)
-	// }
-
-	// ERR_MISSING_WWW_INDEX_HTML
-	// ERR_MISSING_SRC_INDEX_JS
-	// ERR_MISSING_SRC_APP_JS_OR_EXPORT_DEFAULT
-	// ERR_MISSING_ROUTES_JS_OR_EXPORT_DEFAULT
-
-	// No such file or default export for `src/App.js`. `src/App.js` should be a pure
-	// component whereas `src/index.js` has the side effect of mounting or hydrating
-	// the DOM.
-
-	// No such file or default export for `routes.js`. `routes.js` should be an
-	// array describing all paths, head metadata, and props for the render
-	// component.
-	//
-	// For example:
-	//
-	//   module.exports = [
-	//     {
-	//       path: "/",
-	//       head: `
-	//         <title>Hello, world!</title>
-	//         <meta name="title" content=${JSON.stringify("Hello, world!")}>
-	//         <meta name="description" content=${JSON.stringify("Hello, world!")}>
-	//       `,
-	//       props: {
-	//         greeting: "Hello, world!",
-	//       },
-	//     },
-	//   ]
-	//
-	// In effect:
-	//
-	//   const html = `
-	//     <!DOCTYPE html>
-	//     <html lang="en">
-	//       <head>
-	//         <meta charset="utf-8" />
-	//         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	//         ${head}
-	//       </head>
-	//       <body>
-	//         <div id="root">${ReactDOMServer.renderToString(<App {...props} />)}</div>
-	//         <script src="/vendor.js"></script>
-	//         <script src="/bundle.js"></script>
-	//       </body>
-	//     </html>
-	//   `
-
 	// Check for the presence of `www/index.html`
 	if _, err := os.Stat(filepath.Join(RETRO_WWW_DIR, "index.html")); err != nil {
 		return fmt.Errorf("os.Stat: %w", err)
@@ -169,25 +117,6 @@ func warmUp(commandMode CommandMode) error {
 		}
 	}
 
-	// TODO: In theory we should be able to read this from the user's
-	// `www/index.html`
-	// TODO: This should be a structured parameter provided by Retro, i.e. the
-	// head and body content. The HTML string can be created in the Node.js
-	// runtime.
-	// 		const html = `<!DOCTYPE html>
-	// <html lang="en">
-	//   <head>
-	// 		${RetroHeadPart1}
-	// 		${head}
-	// 		${RetroHeadPart1}
-	// 	</head>
-	//   <body>
-	//     <div id="root">${ReactDOMServer.renderToString(React.createElement(BundledAppDefault, route.props))}</div>
-	//     ${RetroScripts}
-	//   </body>
-	// </html>
-	// ` // Add EOF
-
 	return nil
 }
 
@@ -228,13 +157,12 @@ loop:
 		}
 	}
 
-	// DEBUG
-	byteStr, err := json.MarshalIndent(buildAllMessage, "", "  ")
-	if err != nil {
-		return fmt.Errorf("json.MarshalIndent: %w", err)
-		// return err
-	}
-	fmt.Println(string(byteStr))
+	// // DEBUG
+	// byteStr, err := json.MarshalIndent(buildAllMessage, "", "  ")
+	// if err != nil {
+	// 	return fmt.Errorf("json.MarshalIndent: %w", err)
+	// }
+	// fmt.Println(string(byteStr))
 
 	// if err := r.coolDown(); err != nil {
 	// 	return fmt.Errorf("coolDown: %w", err)
@@ -280,39 +208,37 @@ loop:
 		}
 	}
 
-	// DEBUG
-	return nil
+	// // DEBUG
+	// byteStr, err := json.MarshalIndent(staticBuildAllResponse, "", "  ")
+	// if err != nil {
+	// 	return fmt.Errorf("json.MarshalIndent: %w", err)
+	// }
+	// fmt.Println(string(byteStr))
 
-	// DEBUG
-	byteStr, err := json.MarshalIndent(staticBuildAllResponse, "", "  ")
-	if err != nil {
-		return fmt.Errorf("json.MarshalIndent: %w", err)
-	}
-	fmt.Println(string(byteStr))
-
-	// Remove `out/__temp__`
+	// Remove the temporary directory
 	if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "__temp__")); err != nil {
 		panic(fmt.Sprintf("os.RemoveAll: %s", err))
 	}
 
-	// Write `out_static/*.html`
+	// Save pages to the filesystem
 	for _, route := range staticBuildAllResponse.Data.StaticRoutes {
 		filename := filepath.Join(RETRO_OUT_DIR, route.Filename)
-
 		html := `<!DOCTYPE html>
-	<html lang="en">
-		<head>
-			<meta charset="UTF-8">
-			<meta http-equiv="X-UA-Compatible" content="IE=edge">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Document</title>
-		</head>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Hello, world!</title>
+		<link rel="stylesheet" href="/bundle.css" />
+		` + splitMulitlineBrackets(route.Head) + `
+	</head>
 	<body>
 		<div id="root">` + route.Body + `</div>
+		<script src="/vendor.js"></script>
+		<script src="/bundle.js"></script>
 	</body>
 </html>
-`
-
+` // Add EOF
 		if err := os.WriteFile(filename, []byte(html), permFile); err != nil {
 			return fmt.Errorf("os.WriteFile: %w", err)
 		}

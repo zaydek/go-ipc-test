@@ -13,10 +13,8 @@ import {
 
 import {
 	NODE_ENV,
-	// RETRO_CMD,
 	RETRO_OUT_DIR,
 	RETRO_SRC_DIR,
-	// RETRO_WWW_DIR,
 } from "./env"
 
 // Describes `retro.config.js`
@@ -31,7 +29,6 @@ let globalClientResult: esbuild.BuildResult | esbuild.BuildIncremental | null = 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Builds the vendor bundle (e.g. React) and sets the global vendor variable
-// (for incremental recompilation).
 async function buildVendorBundle(): Promise<t.BundleResult> {
 	const vendor: t.BundleResult = {
 		Metafile: null,
@@ -64,7 +61,6 @@ async function buildVendorBundle(): Promise<t.BundleResult> {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Builds the client bundle (e.g. Retro) and sets the global client variable
-// (for incremental recompilation).
 async function buildClientBundle(): Promise<t.BundleResult> {
 	const client: t.BundleResult = {
 		Metafile: null,
@@ -94,7 +90,7 @@ async function buildClientBundle(): Promise<t.BundleResult> {
 	return client
 }
 
-// Builds the vendor and client bundles.
+// Builds the vendor and client bundles
 async function buildAll(): Promise<[t.BundleResult, t.BundleResult]> {
 	const vendor = await buildVendorBundle()
 	const client = await buildClientBundle()
@@ -103,7 +99,7 @@ async function buildAll(): Promise<[t.BundleResult, t.BundleResult]> {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Builds or rebuild the client bundle.
+// Builds or rebuild the client bundle
 async function rebuildClientBundle(): Promise<t.BundleResult> {
 	if (globalClientResult === null) {
 		return await buildClientBundle()
@@ -152,7 +148,7 @@ async function staticBuildAll(): Promise<[t.BundleResult, t.BundleResult, t.Stat
 			entryPoints: [path.join(RETRO_SRC_DIR, "App.js")],
 			outdir: path.join(RETRO_OUT_DIR, "__temp__"),
 
-			// Omit `entryNames` and disable `minify` and `sourcemap`
+			// Disable `minify` and `sourcemap`
 			minify: false,
 			sourcemap: false,
 
@@ -189,8 +185,8 @@ async function staticBuildAll(): Promise<[t.BundleResult, t.BundleResult, t.Stat
 			Head: route.head
 				.trim()
 				.split("\n") // FIXME: Assumes no wrapping lines
-				.map(line => "\t\t" + line.trim())
-				.join("\n"),
+				.map(line => line.trim())
+				.join(""),
 			Body: ReactDOMServer.renderToString(
 				React.createElement(
 					BundledAppComponent,

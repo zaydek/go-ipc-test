@@ -10,7 +10,7 @@ import {
 	RETRO_OUT_DIR,
 } from "./env"
 
-// Resolves `retro.config.js` on the filesystem.
+// Resolves `retro.config.js`
 export async function resolveUserConfiguration(): Promise<esbuild.BuildOptions> {
 	try {
 		await fsPromises.stat("retro.config.js")
@@ -26,10 +26,10 @@ export const commonConfiguration: esbuild.BuildOptions = {
 
 	// Propagate environmental variables
 	define: {
-		// React and React DOM
+		// React and React DOM environmental variables
 		"process.env.NODE_ENV": JSON.stringify(NODE_ENV),
 
-		// Retro
+		// Retro environmental variables
 		"process.env.RETRO_CMD": JSON.stringify(RETRO_CMD),
 		"process.env.RETRO_WWW_DIR": JSON.stringify(RETRO_WWW_DIR),
 		"process.env.RETRO_SRC_DIR": JSON.stringify(RETRO_SRC_DIR),
@@ -77,8 +77,8 @@ export const buildClientConfiguration = (userConfiguration: esbuild.BuildOptions
 	// Enable incremental compilation for development
 	incremental: NODE_ENV === "development",
 
-	// Expose React APIs as global variables (defined on `window`). See
-	// `external` for more context.
+	// Expose React APIs as require shims on `window`. See property `external` for
+	// more context.
 	inject: [path.join(__dirname, "require.js")],
 
 	loader: {
