@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// Starts a long-lived IPC process. Note that stdout reads line-by-line whereas
-// stderr reads once.
+// Starts a long-lived IPC process. stdout messages are read line-by-line
+// whereas stderr messages are read once.
 func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 	cmd := exec.Command(args[0], args[1:]...)
 
@@ -18,6 +18,10 @@ func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 	// channels, Go panics:
 	//
 	//   panic: bufio.Scan: too many empty tokens without progressing
+	//
+	// Or:
+	//
+	//   panic: close of nil channel
 	//
 	var (
 		r1 = make(chan struct{})
@@ -66,8 +70,8 @@ func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 			1024*1024,               // Buffer length
 		)
 		for scanner.Scan() {
-			if str := scanner.Text(); str != "" {
-				stdout <- str
+			if stdoutLine := scanner.Text(); stdoutLine != "" {
+				stdout <- stdoutLine
 			}
 		}
 		if err := scanner.Err(); err != nil {
@@ -98,10 +102,10 @@ func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 			return len(data), data, nil
 		})
 		for scanner.Scan() {
-			if str := scanner.Text(); str != "" {
+			if stderrMultiline := scanner.Text(); stderrMultiline != "" {
 				// Remove the EOF because the `scanner.Split` includes the EOF;
 				// `scanner.Buffer` doesn't
-				stderr <- strings.TrimRight(str, "\n")
+				stderr <- strings.TrimRight(stderrMultiline, "\n")
 			}
 			// Add a micro-delay to prevent Go from panicking:
 			//
@@ -124,5 +128,5 @@ func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 	r2 <- struct{}{}
 	r3 <- struct{}{}
 
-	return stdin, stdout, stderr, err
+	return stdin, stdout, stderr, nil
 }

@@ -141,8 +141,7 @@ loop:
 				break loop
 			}
 			if err := json.Unmarshal([]byte(stdoutLine), &doneMessage); err != nil {
-				// Propagate JSON unmarshal errors as stdout for the user, e.g.
-				// debugging Retro plugins
+				// Propagate JSON unmarshal errors as stdout for debugging plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
 				stdin <- "DONE"
@@ -188,8 +187,7 @@ loop:
 				break loop
 			}
 			if err := json.Unmarshal([]byte(stdoutLine), &doneMessage); err != nil {
-				// Propagate JSON unmarshal errors as stdout for the user, e.g.
-				// debugging Retro plugins
+				// Propagate JSON unmarshal errors as stdout for debugging plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
 				stdin <- "DONE"
