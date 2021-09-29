@@ -1,9 +1,8 @@
 import * as esbuild from "esbuild"
-// import * as fsPromises from "fs/promises"
 import * as path from "path"
 import * as t from "./types"
-// import React from "react"
-// import ReactDOMServer from "react-dom/server"
+import React from "react"
+import ReactDOMServer from "react-dom/server"
 import readline from "./readline"
 
 import {
@@ -20,11 +19,16 @@ import {
 	// RETRO_WWW_DIR,
 } from "./env"
 
+// Describes `retro.config.js`
+let globalUserConfiguration: esbuild.BuildOptions | null = null
+
 // Describes the bundled vendor (React) esbuild result
 let globalVendorResult: esbuild.BuildResult | null = null
 
 // Describes the bundled client (Retro) esbuild result
 let globalClientResult: esbuild.BuildResult | esbuild.BuildIncremental | null = null
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Builds the vendor bundle (e.g. React) and sets the global vendor variable
 // (for incremental recompilation).
@@ -35,32 +39,29 @@ async function buildVendorBundle(): Promise<t.BundleResult> {
 		Errors: [],
 	}
 
-	// Hash filenames for production
-	const entryNames = NODE_ENV !== "production"
-		? undefined
-		: "[dir]/[name]__[hash]"
-
 	try {
 		globalVendorResult = await esbuild.build({
 			...commonConfiguration,
+			entryNames: NODE_ENV !== "production"
+				? undefined
+				: "[dir]/[name]__[hash]",
 			entryPoints: {
 				"vendor": path.join(__dirname, "vendor.js"),
 			},
-			entryNames,
 			outdir: RETRO_OUT_DIR,
 		})
-		// Structure warnings and errors
 		if (globalVendorResult.warnings.length > 0) { vendor.Warnings = globalVendorResult.warnings }
 		if (globalVendorResult.errors.length > 0) { vendor.Errors = globalVendorResult.errors }
 		vendor.Metafile = globalVendorResult.metafile
 	} catch (caught) {
-		// Structure caught warnings and errors
 		if (caught.warnings.length > 0) { vendor.Warnings = caught.warnings }
 		if (caught.errors.length > 0) { vendor.Errors = caught.errors }
 	}
 
 	return vendor
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Builds the client bundle (e.g. Retro) and sets the global client variable
 // (for incremental recompilation).
@@ -71,28 +72,21 @@ async function buildClientBundle(): Promise<t.BundleResult> {
 		Errors: [],
 	}
 
-	const userConfiguration = await resolveUserConfiguration()
-
-	// Hash filenames for production
-	const entryNames = NODE_ENV !== "production"
-		? undefined
-		: "[dir]/[name]__[hash]"
-
 	try {
 		globalClientResult = await esbuild.build({
-			...buildClientConfiguration(userConfiguration),
+			...buildClientConfiguration(globalUserConfiguration),
+			entryNames: NODE_ENV !== "production"
+				? undefined
+				: "[dir]/[name]__[hash]",
 			entryPoints: {
 				"client": path.join(RETRO_SRC_DIR, "index.js"),
 			},
-			entryNames,
 			outdir: RETRO_OUT_DIR,
 		})
-		// Structure warnings and errors
 		if (globalClientResult.warnings.length > 0) { client.Warnings = globalClientResult.warnings }
 		if (globalClientResult.errors.length > 0) { client.Errors = globalClientResult.errors }
 		client.Metafile = globalVendorResult.metafile
 	} catch (caught) {
-		// Structure caught warnings and errors
 		if (caught.warnings.length > 0) { client.Warnings = caught.warnings }
 		if (caught.errors.length > 0) { client.Errors = caught.errors }
 	}
@@ -107,11 +101,11 @@ async function buildAll(): Promise<[t.BundleResult, t.BundleResult]> {
 	return [vendor, client]
 }
 
-// Builds or rebuild teh client bundle.
+////////////////////////////////////////////////////////////////////////////////
+
+// Builds or rebuild the client bundle.
 async function rebuildClientBundle(): Promise<t.BundleResult> {
-	if (
-		globalClientResult === null || // Zero value
-		globalClientResult.rebuild === undefined) {
+	if (globalClientResult === null) {
 		return await buildClientBundle()
 	}
 
@@ -123,18 +117,102 @@ async function rebuildClientBundle(): Promise<t.BundleResult> {
 
 	try {
 		const clientResult = await globalClientResult.rebuild()
-		// Structure warnings and errors
 		if (clientResult.warnings.length > 0) { client.Warnings = clientResult.warnings }
 		if (clientResult.errors.length > 0) { client.Errors = clientResult.errors }
 		client.Metafile = clientResult.metafile
 	} catch (caught) {
-		// Structure caught warnings and errors
 		if (caught.warnings.length > 0) { client.Warnings = caught.warnings }
 		if (caught.errors.length > 0) { client.Errors = caught.errors }
 	}
 
+	if (client.Warnings.length > 0) {
+		console.error(client.Warnings)
+		process.exit(1)
+	}
+	if (client.Errors.length > 0) {
+		console.error(client.Errors)
+		process.exit(1)
+	}
+
 	return client
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+async function staticBuildAll(): Promise<[t.BundleResult, t.BundleResult, t.StaticRoute[]]> {
+	const vendor = await buildVendorBundle()
+	const client = await buildClientBundle()
+
+	// Bundle `App.js` not `index.js` for `ReactDOMServer.renderToString`. `<App>`
+	// should be a pure component where as `index.js` has the side effect of
+	// mounting or hydrating to the DOM.
+	try {
+		const localClientResult = await esbuild.build({
+			...buildClientConfiguration(globalUserConfiguration),
+			entryPoints: [path.join(RETRO_SRC_DIR, "App.js")],
+			outdir: path.join(RETRO_OUT_DIR, "__temp__"),
+
+			// Omit `entryNames` and disable `minify` and `sourcemap`
+			minify: false,
+			sourcemap: false,
+
+			// Add `--platform=node` because the default, `browser`, uses IIFE
+			platform: "node",
+		})
+		if (localClientResult.warnings.length > 0) { client.Warnings = localClientResult.warnings }
+		if (localClientResult.errors.length > 0) { client.Errors = localClientResult.errors }
+		client.Metafile = localClientResult.metafile
+	} catch (caught) {
+		if (caught.warnings.length > 0) { client.Warnings = caught.warnings }
+		if (caught.errors.length > 0) { client.Errors = caught.errors }
+	}
+
+	// Load the bundled app component
+	const BundledAppComponent: Function = require(
+		path.join(process.cwd(), RETRO_OUT_DIR, "__temp__", "App.js"),
+	).default
+
+	// Load declarative routes
+	//
+	// NOTE: We don't need to use the default export because of
+	// `module.exports = [...]`.
+	const declarativeRoutes: t.DeclarativeRoute[] = require(
+		path.join(process.cwd(), "routes.js"),
+	)
+
+	const staticRoutes: t.StaticRoute[] = []
+	for (const route of declarativeRoutes) {
+		const staticRoute: t.StaticRoute = {
+			Filename: route.path.endsWith("/")
+				? route.path + "index.html"
+				: route.path + ".html",
+			Head: route.head
+				.trim()
+				.split("\n") // FIXME: Assumes no wrapping lines
+				.map(line => "\t\t" + line.trim())
+				.join("\n"),
+			Body: ReactDOMServer.renderToString(
+				React.createElement(
+					BundledAppComponent,
+					route.props,
+				),
+			),
+		}
+
+		staticRoutes.push(staticRoute)
+
+		console.log({
+			Kind: "STATIC_ROUTE__DONE",
+			Data: {
+				StaticRoute: staticRoute,
+			},
+		} as t.StaticRouteDoneMessage)
+	}
+
+	return [vendor, client, staticRoutes]
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 // This becomes a Node.js IPC process, from Go to JavaScript. Messages are sent
 // as plaintext strings (actions) and received as JSON-encoded payloads.
@@ -143,40 +221,52 @@ async function rebuildClientBundle(): Promise<t.BundleResult> {
 // plugins can implement logging. stderr messages are exceptions and should
 // terminate the Node.js runtime.
 async function main(): Promise<void> {
-	// Warm up esbuild
 	esbuild.initialize({})
+	globalUserConfiguration = await resolveUserConfiguration()
 
 	while (true) {
 		const action = await readline()
 		try {
 			switch (action) {
-				case "BUILD":
-					const buildResult = await buildAll()
+				case "BUILD_ALL": {
+					const [vendor, client] = await buildAll()
 					console.log(
 						JSON.stringify({
-							Kind: "BUILD_DONE",
-							Data: buildResult,
-						} as t.Message),
+							Kind: "BUILD_ALL__DONE",
+							Data: {
+								Vendor: vendor,
+								Client: client,
+							},
+						} as t.BuildAllDoneMessage),
 					)
 					break
-				case "BUILD_STATIC":
-					const buildStaticResult = await buildAllStatic()
+				}
+				case "STATIC_BUILD_ALL": {
+					const [vendor, client, routes] = await staticBuildAll()
 					console.log(
 						JSON.stringify({
-							Kind: "BUILD_STATIC_DONE",
-							Data: buildStaticResult,
-						} as t.Message),
+							Kind: "STATIC_BUILD_ALL__DONE",
+							Data: {
+								Vendor: vendor,
+								Client: client,
+								StaticRoutes: routes,
+							},
+						} as t.StaticBuildAllDoneMessage),
 					)
 					break
-				case "REBUILD_CLIENT":
-					const clientRebuildResult = await rebuildClientBundle()
+				}
+				case "REBUILD_CLIENT": {
+					const client = await rebuildClientBundle()
 					console.log(
 						JSON.stringify({
-							Kind: "REBUILD_CLIENT_DONE",
-							Data: clientRebuildResult,
-						} as t.Message),
+							Kind: "REBUILD_CLIENT__DONE",
+							Data: {
+								Client: client,
+							},
+						} as t.RebuildClientDoneMessage),
 					)
 					break
+				}
 				case "END_EARLY":
 					process.exit(1)
 				case "END":

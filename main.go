@@ -7,10 +7,8 @@ import (
 )
 
 func main() {
-	app, err := retro.NewRetroApp(retro.ModeBuild)
-	if err != nil {
-		panic(fmt.Errorf("retro.NewRetroApp: %w", err))
+	app := &retro.RetroApp{}
+	if err := app.StaticBuildAll(); err != nil {
+		panic(fmt.Errorf("app.StaticBuild: %w", err))
 	}
-	// TODO: Refactor this? This seems a little awkward?
-	app.BuildStatic()
 }

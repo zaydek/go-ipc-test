@@ -2,25 +2,6 @@
 
 module.exports = {
 	plugins: [
-		// {
-		// 	name: "esbuild-test-plugin",
-		// 	setup(build) {
-		// 		build.onResolve({ filter: /^esbuild:test-plugin$/ }, args => {
-		// 			console.log("a")
-		// 			return {
-		// 				path: args.path,
-		// 				namespace: "esbuild-test-plugin-ns",
-		// 			}
-		// 		})
-		// 		build.onLoad({ filter: /.*/, namespace: "esbuild-test-plugin-ns" }, async args => {
-		// 			console.log("b")
-		// 			return {
-		// 				contents: "export default {}",
-		// 				loader: "js",
-		// 			}
-		// 		})
-		// 	},
-		// }
 		{
 			name: "env",
 			setup(build) {

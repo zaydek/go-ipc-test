@@ -21,8 +21,6 @@ export async function resolveUserConfiguration(): Promise<esbuild.BuildOptions> 
 }
 
 export const commonConfiguration: esbuild.BuildOptions = {
-	// Intentionally omits `entryPoints`, `entryNames`, and `outdir`
-
 	// Always bundle
 	bundle: true,
 

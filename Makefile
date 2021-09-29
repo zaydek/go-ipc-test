@@ -5,7 +5,9 @@ all:
 	npx esbuild node/scripts/backend/backend.ts \
 		--bundle \
 		--external:esbuild \
-		--format=cjs \
+		--external:react \
+		--external:react-dom \
+		--external:react-dom/server \
 		--log-level=warning \
 		--outfile=node/scripts/backend.esbuild.js \
 		--platform=node \

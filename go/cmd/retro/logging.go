@@ -8,16 +8,27 @@ import (
 )
 
 func decorateStdoutLine(stdoutLine string) string {
-	return fmt.Sprintf("%s  %s", terminal.BoldCyan("stdout"), stdoutLine)
+	stdout := fmt.Sprintf(
+		"%s %s  %s",
+		terminal.Dim("(Node.js)"),
+		terminal.BoldCyan("stdout"),
+		stdoutLine,
+	)
+	return stdout
 }
 
-func decorateStderrText(stderrText string) string {
-	var decoratedErrStr string
-	for lineIndex, line := range strings.Split(strings.TrimRight(stderrText, "\n"), "\n") {
+func decorateStderrMultiline(stderrMultiline string) string {
+	var stderr string
+	for lineIndex, line := range strings.Split(strings.TrimRight(stderrMultiline, "\n"), "\n") {
 		if lineIndex > 0 {
-			decoratedErrStr += "\n"
+			stderr += "\n"
 		}
-		decoratedErrStr += fmt.Sprintf("%s  %s", terminal.BoldRed("stderr"), line)
+		stderr += fmt.Sprintf(
+			"%s %s  %s",
+			terminal.Dim("(Node.js)"),
+			terminal.BoldRed("stderr"),
+			line,
+		)
 	}
-	return decoratedErrStr
+	return stderr
 }

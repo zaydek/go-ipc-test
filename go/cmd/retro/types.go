@@ -8,22 +8,25 @@ type BundleResult struct {
 	Errors   []api.Message
 }
 
-type BuildResponse struct {
-	Kind string
-	Data []BundleResult
-}
-
-// TODO: This likely needs to embed Build Response too or similar
-type BuildStaticResponse struct {
+type BuildAllMessage struct {
 	Kind string
 	Data struct {
-		Routes []struct {
-			Route struct {
-				Filename string
-				HTML     string
-			}
-			MeasuredMs int
-		}
-		MeasuredMs int
+		Vendor BundleResult
+		Client BundleResult
+	}
+}
+
+type StaticRoute struct {
+	Filename string
+	Head     string
+	Body     string
+}
+
+type StaticBuildAllMessage struct {
+	Kind string
+	Data struct {
+		Vendor       BundleResult
+		Client       BundleResult
+		StaticRoutes []StaticRoute
 	}
 }

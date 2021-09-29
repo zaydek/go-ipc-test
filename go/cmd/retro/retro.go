@@ -9,14 +9,6 @@ import (
 	"github.com/zaydek/go-ipc-test/go/pkg/ipc"
 )
 
-type CommandMode = string
-
-var (
-	ModeDev         CommandMode = "dev"
-	ModeBuild       CommandMode = "build"
-	ModeBuildStatic CommandMode = "build_static"
-)
-
 var (
 	NODE_ENV      = ""
 	RETRO_CMD     = ""
@@ -48,51 +40,39 @@ func setEnvVars(commandMode CommandMode) {
 	switch commandMode {
 	case ModeDev:
 		setEnvVar("NODE_ENV", "development")
-	case ModeBuild:
+	case ModeBuildAll:
 		fallthrough
-	case ModeBuildStatic:
+	case ModeStaticBuildAll:
 		setEnvVar("NODE_ENV", "production")
 	}
 	switch commandMode {
 	case ModeDev:
-		setEnvVar("RETRO_CMD", "dev")
-	case ModeBuild:
-		setEnvVar("RETRO_CMD", "build")
-	case ModeBuildStatic:
-		setEnvVar("RETRO_CMD", "build_static")
+		setEnvVar("RETRO_CMD", ModeDev)
+	case ModeBuildAll:
+		setEnvVar("RETRO_CMD", ModeBuildAll)
+	case ModeStaticBuildAll:
+		setEnvVar("RETRO_CMD", ModeStaticBuildAll)
 	}
 	setEnvVar("RETRO_WWW_DIR", "www")
 	setEnvVar("RETRO_SRC_DIR", "src")
 	setEnvVar("RETRO_OUT_DIR", "out")
 }
 
-type RetroApp struct {
-	commandMode CommandMode
-}
+type RetroApp struct{}
 
-func NewRetroApp(commandMode CommandMode) (*RetroApp, error) {
-	app := &RetroApp{
-		commandMode: commandMode,
-	}
-	if err := app.initialize(); err != nil {
-		return nil, fmt.Errorf("app.initialize: %w", err)
-	}
-	return app, nil
-}
-
-func (r *RetroApp) initialize() error {
+func warmUp(commandMode CommandMode) error {
 	// Set environmental and global Go variables
-	setEnvVars(r.commandMode)
+	setEnvVars(commandMode)
 
 	// Remove previous build artifacts
 	if err := os.RemoveAll(RETRO_OUT_DIR); err != nil {
 		return fmt.Errorf("os.RemoveAll: %w", err)
 	}
 
-	// Remove previous static build artifacts
-	if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "_static")); err != nil {
-		return fmt.Errorf("os.RemoveAll: %w", err)
-	}
+	// // Remove previous static build artifacts
+	// if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "_static")); err != nil {
+	// 	return fmt.Errorf("os.RemoveAll: %w", err)
+	// }
 
 	// ERR_MISSING_WWW_INDEX_HTML
 	// ERR_MISSING_SRC_INDEX_JS
@@ -164,25 +144,29 @@ func (r *RetroApp) initialize() error {
 	}
 
 	// Check for the presence of `src/App.js`
-	if _, err := os.Stat(filepath.Join(RETRO_SRC_DIR, "App.js")); err != nil {
-		return fmt.Errorf("os.Stat: %w", err)
-	} else if os.IsNotExist(err) {
-		fmt.Fprintln(
-			os.Stderr,
-			"Missing `src/App.js` entry point.",
-		)
-		os.Exit(1)
+	if commandMode == ModeStaticBuildAll {
+		if _, err := os.Stat(filepath.Join(RETRO_SRC_DIR, "App.js")); err != nil {
+			return fmt.Errorf("os.Stat: %w", err)
+		} else if os.IsNotExist(err) {
+			fmt.Fprintln(
+				os.Stderr,
+				"Missing `src/App.js` entry point.",
+			)
+			os.Exit(1)
+		}
 	}
 
 	// Check for the presence of `routes.js`
-	if _, err := os.Stat("routes.js"); err != nil {
-		return fmt.Errorf("os.Stat: %w", err)
-	} else if os.IsNotExist(err) {
-		fmt.Fprintln(
-			os.Stderr,
-			"Missing `routes.js` entry point.",
-		)
-		os.Exit(1)
+	if commandMode == ModeStaticBuildAll {
+		if _, err := os.Stat("routes.js"); err != nil {
+			return fmt.Errorf("os.Stat: %w", err)
+		} else if os.IsNotExist(err) {
+			fmt.Fprintln(
+				os.Stderr,
+				"Missing `routes.js` entry point.",
+			)
+			os.Exit(1)
+		}
 	}
 
 	// TODO: In theory we should be able to read this from the user's
@@ -207,34 +191,29 @@ func (r *RetroApp) initialize() error {
 	return nil
 }
 
-// func (r *RetroApp) coolDown() error {
-// 	// Remove `out_static/__temp__`
-// 	// if r.commandMode == ModeBuildStatic {
-// 	if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR+"_static", "__temp__")); err != nil {
-// 		return fmt.Errorf("os.RemoveAll: %w", err)
-// 	}
-// 	// }
-//
-// 	return nil
-// }
+////////////////////////////////////////////////////////////////////////////////
 
-func (r *RetroApp) Build() error {
+func (r *RetroApp) BuildAll() error {
+	if err := warmUp(ModeBuildAll); err != nil {
+		return fmt.Errorf("warmUp: %w", err)
+	}
+
 	stdin, stdout, stderr, err := ipc.NewCommand("node", "node/scripts/backend.esbuild.js")
 	if err != nil {
 		return fmt.Errorf("ipc.NewCommand: %w", err)
 	}
 
-	var buildResponse BuildResponse
+	var buildAllMessage BuildAllMessage
 
-	stdin <- "BUILD"
+	stdin <- "BUILD_ALL"
 loop:
 	for {
 		select {
 		case stdoutLine := <-stdout:
-			if stdoutLine == "BUILD_DONE" {
+			if stdoutLine == "BUILD_ALL__DONE" {
 				break loop
 			}
-			if err := json.Unmarshal([]byte(stdoutLine), &buildResponse); err != nil {
+			if err := json.Unmarshal([]byte(stdoutLine), &buildAllMessage); err != nil {
 				// Propagate JSON unmarshal errors as stdout for the user, e.g.
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
@@ -244,13 +223,13 @@ loop:
 			}
 		case stderrText := <-stderr:
 			stdin <- "END_EARLY"
-			fmt.Println(decorateStderrText(stderrText))
+			fmt.Println(decorateStderrMultiline(stderrText))
 			break loop
 		}
 	}
 
 	// DEBUG
-	byteStr, err := json.MarshalIndent(buildResponse, "", "  ")
+	byteStr, err := json.MarshalIndent(buildAllMessage, "", "  ")
 	if err != nil {
 		return fmt.Errorf("json.MarshalIndent: %w", err)
 		// return err
@@ -266,23 +245,27 @@ loop:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func (r *RetroApp) BuildStatic() error {
+func (r *RetroApp) StaticBuildAll() error {
+	if err := warmUp(ModeStaticBuildAll); err != nil {
+		return fmt.Errorf("warmUp: %w", err)
+	}
+
 	stdin, stdout, stderr, err := ipc.NewCommand("node", "node/scripts/backend.esbuild.js")
 	if err != nil {
 		return fmt.Errorf("ipc.NewCommand: %w", err)
 	}
 
-	var buildStaticResponse BuildStaticResponse
+	var staticBuildAllResponse StaticBuildAllMessage
 
-	stdin <- "BUILD"
+	stdin <- "STATIC_BUILD_ALL"
 loop:
 	for {
 		select {
 		case stdoutLine := <-stdout:
-			if stdoutLine == "BUILD_DONE" {
+			if stdoutLine == "STATIC_BUILD_ALL__DONE" {
 				break loop
 			}
-			if err := json.Unmarshal([]byte(stdoutLine), &buildStaticResponse); err != nil {
+			if err := json.Unmarshal([]byte(stdoutLine), &staticBuildAllResponse); err != nil {
 				// Propagate JSON unmarshal errors as stdout for the user, e.g.
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
@@ -290,54 +273,50 @@ loop:
 				stdin <- "END"
 				break loop
 			}
-		case stderrText := <-stderr:
+		case stderrMultiline := <-stderr:
 			stdin <- "END_EARLY"
-			fmt.Println(decorateStderrText(stderrText))
+			fmt.Println(decorateStderrMultiline(stderrMultiline))
 			break loop
 		}
 	}
 
 	// DEBUG
-	byteStr, err := json.MarshalIndent(buildStaticResponse, "", "  ")
+	return nil
+
+	// DEBUG
+	byteStr, err := json.MarshalIndent(staticBuildAllResponse, "", "  ")
 	if err != nil {
 		return fmt.Errorf("json.MarshalIndent: %w", err)
 	}
 	fmt.Println(string(byteStr))
 
-	// Remove `out_static/__temp__`
-	if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR+"_static", "__temp__")); err != nil {
+	// Remove `out/__temp__`
+	if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "__temp__")); err != nil {
 		panic(fmt.Sprintf("os.RemoveAll: %s", err))
 	}
 
 	// Write `out_static/*.html`
-	for _, route := range buildStaticResponse.Data.Routes {
-		filename := filepath.Join(RETRO_OUT_DIR+"_static", route.Route.Filename)
-		if err := os.WriteFile(filename, []byte(route.Route.HTML), permFile); err != nil {
+	for _, route := range staticBuildAllResponse.Data.StaticRoutes {
+		filename := filepath.Join(RETRO_OUT_DIR, route.Filename)
+
+		html := `<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8">
+			<meta http-equiv="X-UA-Compatible" content="IE=edge">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Document</title>
+		</head>
+	<body>
+		<div id="root">` + route.Body + `</div>
+	</body>
+</html>
+`
+
+		if err := os.WriteFile(filename, []byte(html), permFile); err != nil {
 			return fmt.Errorf("os.WriteFile: %w", err)
 		}
 	}
 
 	return nil
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// func main() {
-// 	app, err := NewRetroApp(ModeBuild)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	// TODO: Refactor this? This seems a little awkward?
-// 	app.BuildStatic()
-//
-// 	// switch ModeBuildStatic {
-// 	// case ModeBuild:
-// 	// 	if err := retro.Build(); err != nil {
-// 	// 		panic(err)
-// 	// 	}
-// 	// case ModeBuildStatic:
-// 	// 	if err := retro.BuildStatic(); err != nil {
-// 	// 		panic(err)
-// 	// 	}
-// 	// }
-// }
