@@ -1,5 +1,3 @@
-import React from "react"
-
 export default function App() {
 	const [state, setState] = React.useState(0)
 

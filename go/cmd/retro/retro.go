@@ -215,10 +215,10 @@ loop:
 	// }
 	// fmt.Println(string(byteStr))
 
-	// Remove the temporary directory
-	if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "__temp__")); err != nil {
-		panic(fmt.Sprintf("os.RemoveAll: %s", err))
-	}
+	// // Remove the temporary directory
+	// if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "__temp__")); err != nil {
+	// 	panic(fmt.Sprintf("os.RemoveAll: %s", err))
+	// }
 
 	// Save pages to the filesystem
 	for _, route := range staticBuildAllResponse.Data.StaticRoutes {

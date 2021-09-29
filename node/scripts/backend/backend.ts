@@ -148,12 +148,11 @@ async function staticBuildAll(): Promise<[t.BundleResult, t.BundleResult, t.Stat
 			entryPoints: [path.join(RETRO_SRC_DIR, "App.js")],
 			outdir: path.join(RETRO_OUT_DIR, "__temp__"),
 
-			// Disable `minify` and `sourcemap`
-			minify: false,
-			sourcemap: false,
-
-			// Add `--platform=node` because the default, `browser`, uses IIFE
+			// The default, browser, uses IIFE which breaks `require`
 			platform: "node",
+
+			// Disable minification to make debugging easier
+			minify: false,
 		})
 		if (localClientResult.warnings.length > 0) { client.Warnings = localClientResult.warnings }
 		if (localClientResult.errors.length > 0) { client.Errors = localClientResult.errors }
@@ -169,9 +168,6 @@ async function staticBuildAll(): Promise<[t.BundleResult, t.BundleResult, t.Stat
 	).default
 
 	// Load declarative routes
-	//
-	// NOTE: We don't need to use the default export because of
-	// `module.exports = [...]`.
 	const declarativeRoutes: t.DeclarativeRoute[] = require(
 		path.join(process.cwd(), "routes.js"),
 	)

@@ -52,7 +52,7 @@ export const commonConfiguration: esbuild.BuildOptions = {
 	// Minify for production
 	minify: NODE_ENV === "production",
 
-	// Add `*.map` files
+	// Add sourcemaps
 	sourcemap: true,
 }
 

@@ -9,6 +9,6 @@ import (
 func main() {
 	app := &retro.RetroApp{}
 	if err := app.StaticBuildAll(); err != nil {
-		panic(fmt.Errorf("app.StaticBuild: %w", err))
+		panic(fmt.Errorf("app.StaticBuildAll: %w", err))
 	}
 }
