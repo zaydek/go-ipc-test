@@ -61,13 +61,11 @@ func setEnvVars(commandMode CommandMode) {
 type RetroApp struct{}
 
 func warmUp(commandMode CommandMode) error {
-	// Set environmental and global Go variables
-	setEnvVars(commandMode)
-
-	// Remove previous build artifacts
 	if err := os.RemoveAll(RETRO_OUT_DIR); err != nil {
 		return fmt.Errorf("os.RemoveAll: %w", err)
 	}
+
+	setEnvVars(commandMode)
 
 	// Check for the presence of `www/index.html`
 	if _, err := os.Stat(filepath.Join(RETRO_WWW_DIR, "index.html")); err != nil {
@@ -147,11 +145,11 @@ loop:
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
-				stdin <- "END"
+				stdin <- "DONE"
 				break loop
 			}
 		case stderrText := <-stderr:
-			stdin <- "END_EARLY"
+			stdin <- "TERMINATE"
 			fmt.Println(decorateStderrMultiline(stderrText))
 			break loop
 		}
@@ -163,10 +161,6 @@ loop:
 	// 	return fmt.Errorf("json.MarshalIndent: %w", err)
 	// }
 	// fmt.Println(string(byteStr))
-
-	// if err := r.coolDown(); err != nil {
-	// 	return fmt.Errorf("coolDown: %w", err)
-	// }
 
 	return nil
 }
@@ -198,11 +192,11 @@ loop:
 				// debugging Retro plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
-				stdin <- "END"
+				stdin <- "DONE"
 				break loop
 			}
 		case stderrMultiline := <-stderr:
-			stdin <- "END_EARLY"
+			stdin <- "TERMINATE"
 			fmt.Println(decorateStderrMultiline(stderrMultiline))
 			break loop
 		}
@@ -215,12 +209,7 @@ loop:
 	// }
 	// fmt.Println(string(byteStr))
 
-	// // Remove the temporary directory
-	// if err := os.RemoveAll(filepath.Join(RETRO_OUT_DIR, "__temp__")); err != nil {
-	// 	panic(fmt.Sprintf("os.RemoveAll: %s", err))
-	// }
-
-	// Save pages to the filesystem
+	// Save routes as pages
 	for _, route := range staticBuildAllResponse.Data.StaticRoutes {
 		filename := filepath.Join(RETRO_OUT_DIR, route.Filename)
 		html := `<!DOCTYPE html>

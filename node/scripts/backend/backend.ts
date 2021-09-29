@@ -146,7 +146,7 @@ async function staticBuildAll(): Promise<[t.BundleResult, t.BundleResult, t.Stat
 		const localClientResult = await esbuild.build({
 			...buildClientConfiguration(globalUserConfiguration),
 			entryPoints: [path.join(RETRO_SRC_DIR, "App.js")],
-			outdir: path.join(RETRO_OUT_DIR, "__temp__"),
+			outdir: path.join(RETRO_OUT_DIR, ".retro_temp"),
 
 			// The default, browser, uses IIFE which breaks `require`
 			platform: "node",
@@ -164,7 +164,7 @@ async function staticBuildAll(): Promise<[t.BundleResult, t.BundleResult, t.Stat
 
 	// Load the bundled app component
 	const BundledAppComponent: Function = require(
-		path.join(process.cwd(), RETRO_OUT_DIR, "__temp__", "App.js"),
+		path.join(process.cwd(), RETRO_OUT_DIR, ".retro_temp", "App.js"),
 	).default
 
 	// Load declarative routes
@@ -259,9 +259,9 @@ async function main(): Promise<void> {
 					)
 					break
 				}
-				case "END_EARLY":
+				case "TERMINATE":
 					process.exit(1)
-				case "END":
+				case "DONE":
 					process.exit(0)
 				default:
 					throw new Error("Internal error")
