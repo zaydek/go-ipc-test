@@ -141,7 +141,6 @@ loop:
 				break loop
 			}
 			if err := json.Unmarshal([]byte(stdoutLine), &doneMessage); err != nil {
-				// Propagate JSON unmarshal errors as stdout for debugging plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
 				stdin <- "DONE"
@@ -149,7 +148,7 @@ loop:
 			}
 		case stderrText := <-stderr:
 			stdin <- "TERMINATE"
-			fmt.Println(decorateStderrMultiline(stderrText))
+			fmt.Println(decorateStderrText(stderrText))
 			break loop
 		}
 	}
@@ -187,15 +186,14 @@ loop:
 				break loop
 			}
 			if err := json.Unmarshal([]byte(stdoutLine), &doneMessage); err != nil {
-				// Propagate JSON unmarshal errors as stdout for debugging plugins
 				fmt.Println(decorateStdoutLine(stdoutLine))
 			} else {
 				stdin <- "DONE"
 				break loop
 			}
-		case stderrMultiline := <-stderr:
+		case stderrText := <-stderr:
 			stdin <- "TERMINATE"
-			fmt.Println(decorateStderrMultiline(stderrMultiline))
+			fmt.Println(decorateStderrText(stderrText))
 			break loop
 		}
 	}

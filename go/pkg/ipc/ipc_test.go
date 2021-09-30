@@ -12,7 +12,7 @@ import (
 
 func TestCommandFooFailure(t *testing.T) {
 	_, _, _, err := NewCommand("foo")
-	if err.Error() == `exec: "foo": executable file not found in $PATH` {
+	if err.Error() == `cmd.Start: exec: "foo": executable file not found in $PATH` {
 		// Success
 		return
 	}
@@ -37,12 +37,7 @@ func TestCommandEchoSuccess(t *testing.T) {
 }
 
 func TestNodeSyntaxError(t *testing.T) {
-	const (
-		MODE_DIR  = 0755
-		MODE_FILE = 0644
-	)
-
-	js := `
+	const js = `
 		async function sleep(milliseconds) {
 			await new Promise(resolve => setTimeout(resolve, milliseconds))
 		}
@@ -58,7 +53,7 @@ func TestNodeSyntaxError(t *testing.T) {
 		main()
 	`
 
-	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), MODE_FILE); err != nil {
+	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), 0644); err != nil {
 		t.Fatalf("os.WriteFile: %s", err)
 	}
 	defer os.Remove("ipc_test.go.script.js")
@@ -92,12 +87,7 @@ loop:
 }
 
 func TestNodeStdoutSuccess(t *testing.T) {
-	const (
-		MODE_DIR  = 0755
-		MODE_FILE = 0644
-	)
-
-	js := `
+	const js = `
 		async function sleep(milliseconds) {
 			await new Promise(resolve => setTimeout(resolve, milliseconds))
 		}
@@ -113,7 +103,7 @@ func TestNodeStdoutSuccess(t *testing.T) {
 		main()
 	`
 
-	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), MODE_FILE); err != nil {
+	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), 0644); err != nil {
 		t.Fatalf("os.WriteFile: %s", err)
 	}
 	defer os.Remove("ipc_test.go.script.js")
@@ -142,12 +132,7 @@ loop:
 }
 
 func TestNodeStderrSuccess(t *testing.T) {
-	const (
-		MODE_DIR  = 0755
-		MODE_FILE = 0644
-	)
-
-	js := `
+	const js = `
 		async function sleep(milliseconds) {
 			await new Promise(resolve => setTimeout(resolve, milliseconds))
 		}
@@ -159,7 +144,7 @@ func TestNodeStderrSuccess(t *testing.T) {
 		main()
 	`
 
-	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), MODE_FILE); err != nil {
+	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), 0644); err != nil {
 		t.Fatalf("os.WriteFile: %s", err)
 	}
 	defer os.Remove("ipc_test.go.script.js")
@@ -188,24 +173,19 @@ loop:
 }
 
 func TestNodeStdinSuccess(t *testing.T) {
-	const (
-		MODE_DIR  = 0755
-		MODE_FILE = 0644
-	)
-
-	js := `
+	const js = `
 		const nodeReadline = require("readline")
 
-		const readline = (function readline() {
+		const readline = (function () {
 			async function* createReadlineGenerator() {
 				const nodeReadlineInterface = nodeReadline.createInterface({ input: process.stdin })
 				for await (const line of nodeReadlineInterface) {
 					yield line
 				}
 			}
-			const generate = createReadlineGenerator()
+			const generator = createReadlineGenerator()
 			return async () => {
-				const result = await generate.next()
+				const result = await generator.next()
 				return result.value
 			}
 		})()
@@ -225,7 +205,7 @@ func TestNodeStdinSuccess(t *testing.T) {
 		main()
 	`
 
-	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), MODE_FILE); err != nil {
+	if err := os.WriteFile("ipc_test.go.script.js", []byte(js), 0644); err != nil {
 		t.Fatalf("os.WriteFile: %s", err)
 	}
 	defer os.Remove("ipc_test.go.script.js")

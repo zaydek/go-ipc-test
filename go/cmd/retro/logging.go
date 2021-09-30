@@ -8,32 +8,47 @@ import (
 )
 
 // (Node.js) stdout  ...
-func decorateStdoutLine(stdoutLine string) string {
+func decorateStdoutLine(line string) string {
 	stdout := fmt.Sprintf(
 		"%s %s  %s",
 		terminal.Dim("(Node.js)"),
 		terminal.BoldCyan("stdout"),
-		stdoutLine,
+		line,
 	)
 	return stdout
 }
 
 // (Node.js) stderr  ...
-func decorateStderrLine(stdoutLine string) string {
+func decorateStderrLine(line string) string {
 	stdout := fmt.Sprintf(
 		"%s %s  %s",
 		terminal.Dim("(Node.js)"),
 		terminal.BoldRed("stderr"),
-		stdoutLine,
+		line,
 	)
+	return stdout
+}
+
+// (Node.js) stdout  ...
+// (Node.js) stdout  ...
+func decorateStdoutText(stdoutMultiline string) string {
+	var stdout string
+	split := strings.Split(strings.TrimRight(stdoutMultiline, "\n"), "\n")
+	for lineIndex, line := range split {
+		if lineIndex > 0 {
+			stdout += "\n"
+		}
+		stdout += decorateStdoutLine(line)
+	}
 	return stdout
 }
 
 // (Node.js) stderr  ...
 // (Node.js) stderr  ...
-func decorateStderrMultiline(stderrMultiline string) string {
+func decorateStderrText(stderrText string) string {
 	var stderr string
-	for lineIndex, line := range strings.Split(strings.TrimRight(stderrMultiline, "\n"), "\n") {
+	split := strings.Split(strings.TrimRight(stderrText, "\n"), "\n")
+	for lineIndex, line := range split {
 		if lineIndex > 0 {
 			stderr += "\n"
 		}

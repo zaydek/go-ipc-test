@@ -50,9 +50,9 @@ func decorateStdoutText(stdoutMultiline string) string {
 
 // (Node.js) stderr  ...
 // (Node.js) stderr  ...
-func decorateStderrText(stderrMultiline string) string {
+func decorateStderrText(stderrText string) string {
 	var stderr string
-	split := strings.Split(strings.TrimRight(stderrMultiline, "\n"), "\n")
+	split := strings.Split(strings.TrimRight(stderrText, "\n"), "\n")
 	for lineIndex, line := range split {
 		if lineIndex > 0 {
 			stderr += "\n"
