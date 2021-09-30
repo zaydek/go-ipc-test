@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"time"
 )
 
 // Starts a long-lived IPC process. stdout messages are read line-by-line
@@ -103,15 +102,13 @@ func NewCommand(args ...string) (stdin, stdout, stderr chan string, err error) {
 		})
 		for scanner.Scan() {
 			if stderrMultiline := scanner.Text(); stderrMultiline != "" {
-				// Remove the EOF because the `scanner.Split` includes the EOF;
-				// `scanner.Buffer` doesn't
 				stderr <- strings.TrimRight(stderrMultiline, "\n")
 			}
-			// Add a micro-delay to prevent Go from panicking:
-			//
-			//   panic: bufio.Scan: too many empty tokens without progressing
-			//
-			time.Sleep(10 * time.Millisecond)
+			// // Add a micro-delay to prevent Go from panicking:
+			// //
+			// //   panic: bufio.Scan: too many empty tokens without progressing
+			// //
+			// time.Sleep(10 * time.Millisecond)
 		}
 		if err := scanner.Err(); err != nil {
 			panic(err)

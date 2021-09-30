@@ -61,11 +61,11 @@ func setEnvVars(commandMode CommandMode) {
 type RetroApp struct{}
 
 func warmUp(commandMode CommandMode) error {
+	setEnvVars(commandMode) // Takes precedence
+
 	if err := os.RemoveAll(RETRO_OUT_DIR); err != nil {
 		return fmt.Errorf("os.RemoveAll: %w", err)
 	}
-
-	setEnvVars(commandMode)
 
 	// Check for the presence of `www/index.html`
 	if _, err := os.Stat(filepath.Join(RETRO_WWW_DIR, "index.html")); err != nil {
