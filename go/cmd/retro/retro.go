@@ -17,8 +17,13 @@ var (
 	RETRO_OUT_DIR = ""
 )
 
-func setEnvVars(commandMode CommandMode) {
-	setEnvVar := func(envKey, fallbackValue string) {
+func setEnvsAndGlobalVariables(commandMode CommandMode) error {
+	// Propagates environmental variables or sets default values
+	var err error
+	setEnv := func(envKey, fallbackValue string) {
+		if err != nil {
+			return
+		}
 		envValue := os.Getenv(envKey)
 		if envValue == "" {
 			envValue = fallbackValue
@@ -35,29 +40,32 @@ func setEnvVars(commandMode CommandMode) {
 		case "RETRO_OUT_DIR":
 			RETRO_OUT_DIR = envValue
 		}
-		os.Setenv(envKey, envValue)
+		if err = os.Setenv(envKey, envValue); err != nil {
+			err = fmt.Errorf("os.Setenv: %w", err)
+		}
 	}
 	switch commandMode {
 	case ModeDev:
-		setEnvVar("NODE_ENV", "development")
+		setEnv("NODE_ENV", "development")
 	case ModeBuild:
-		setEnvVar("NODE_ENV", "production")
+		setEnv("NODE_ENV", "production")
 	}
 	switch commandMode {
 	case ModeDev:
-		setEnvVar("RETRO_CMD", ModeDev)
+		setEnv("RETRO_CMD", ModeDev)
 	case ModeBuild:
-		setEnvVar("RETRO_CMD", ModeBuild)
+		setEnv("RETRO_CMD", ModeBuild)
 	}
-	setEnvVar("RETRO_WWW_DIR", "www")
-	setEnvVar("RETRO_SRC_DIR", "src")
-	setEnvVar("RETRO_OUT_DIR", "out")
+	setEnv("RETRO_WWW_DIR", "www")
+	setEnv("RETRO_SRC_DIR", "src")
+	setEnv("RETRO_OUT_DIR", "out")
+	return err
 }
 
 type RetroApp struct{}
 
 func warmUp(commandMode CommandMode) error {
-	setEnvVars(commandMode) // Takes precedence
+	setEnvsAndGlobalVariables(commandMode) // Takes precedence
 
 	if err := os.RemoveAll(RETRO_OUT_DIR); err != nil {
 		return fmt.Errorf("os.RemoveAll: %w", err)
