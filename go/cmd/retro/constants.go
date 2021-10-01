@@ -13,7 +13,6 @@ const (
 type CommandMode = string
 
 const (
-	ModeDev            CommandMode = "dev"
-	ModeBuildAll       CommandMode = "build_all"
-	ModeStaticBuildAll CommandMode = "static_build_all"
+	ModeDev   CommandMode = "dev"
+	ModeBuild CommandMode = "build"
 )

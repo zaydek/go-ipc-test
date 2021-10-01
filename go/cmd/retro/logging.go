@@ -31,9 +31,9 @@ func decorateStderrLine(line string) string {
 
 // (Node.js) stdout  ...
 // (Node.js) stdout  ...
-func decorateStdoutText(stdoutMultiline string) string {
+func decorateStdoutText(text string) string {
 	var stdout string
-	split := strings.Split(strings.TrimRight(stdoutMultiline, "\n"), "\n")
+	split := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	for lineIndex, line := range split {
 		if lineIndex > 0 {
 			stdout += "\n"
@@ -45,9 +45,9 @@ func decorateStdoutText(stdoutMultiline string) string {
 
 // (Node.js) stderr  ...
 // (Node.js) stderr  ...
-func decorateStderrText(stderrText string) string {
+func decorateStderrText(text string) string {
 	var stderr string
-	split := strings.Split(strings.TrimRight(stderrText, "\n"), "\n")
+	split := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	for lineIndex, line := range split {
 		if lineIndex > 0 {
 			stderr += "\n"

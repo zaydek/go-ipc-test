@@ -20,6 +20,7 @@ export async function resolveUserConfiguration(): Promise<esbuild.BuildOptions> 
 	return require(path.join(process.cwd(), "retro.config.js"))
 }
 
+// The common configuration, for the vendor and client bundles
 export const commonConfiguration: esbuild.BuildOptions = {
 	// Always bundle
 	bundle: true,
@@ -45,8 +46,6 @@ export const commonConfiguration: esbuild.BuildOptions = {
 	logLevel: "silent",
 
 	// Includes the generated hashed filenames
-	// TODO: We don't really need this all the time do we? This is only actually
-	// useful with entry names.
 	metafile: true,
 
 	// Minify for production
@@ -56,6 +55,8 @@ export const commonConfiguration: esbuild.BuildOptions = {
 	sourcemap: true,
 }
 
+// Build the client configuration from the user configuration e.g.
+// `retro.config.js`
 export const buildClientConfiguration = (userConfiguration: esbuild.BuildOptions): esbuild.BuildOptions => ({
 	...commonConfiguration,
 	...userConfiguration,
@@ -66,8 +67,9 @@ export const buildClientConfiguration = (userConfiguration: esbuild.BuildOptions
 		...userConfiguration.define,
 	},
 
-	// Dedupe React APIs from `bundle.js`; React APIs are bundled in
-	// `vendor.js`. See `inject` for more context.
+	// Dedupe React APIs from `bundle.js`; React APIs are bundled in `vendor.js`
+
+	// Dedupe vendor APIs; vendor APIs are bundled in `vendor.js`
 	external: [
 		"react",
 		"react-dom",
@@ -77,8 +79,7 @@ export const buildClientConfiguration = (userConfiguration: esbuild.BuildOptions
 	// Enable incremental compilation for development
 	incremental: NODE_ENV === "development",
 
-	// Expose React APIs as require shims on `window`. See property `external` for
-	// more context.
+	// Vendor API shims
 	inject: [path.join(__dirname, "require.js")],
 
 	loader: {

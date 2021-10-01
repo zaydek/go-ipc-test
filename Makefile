@@ -1,6 +1,6 @@
-# TODO: Do we need to polyfill window.location.pathname for the router, etc.?
-# --define:window='{ "location": { "pathname": "/" } }'
-
+# Bundle `backend.ts` for `node scripts/backend.esbuild.js`. Note esbuild and
+# React dependencies shouldn't be bundled; these can be required because the
+# backend script is run exclusively on the server.
 all:
 	npx esbuild node/scripts/backend/backend.ts \
 		--bundle \

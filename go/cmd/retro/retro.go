@@ -40,18 +40,14 @@ func setEnvVars(commandMode CommandMode) {
 	switch commandMode {
 	case ModeDev:
 		setEnvVar("NODE_ENV", "development")
-	case ModeBuildAll:
-		fallthrough
-	case ModeStaticBuildAll:
+	case ModeBuild:
 		setEnvVar("NODE_ENV", "production")
 	}
 	switch commandMode {
 	case ModeDev:
 		setEnvVar("RETRO_CMD", ModeDev)
-	case ModeBuildAll:
-		setEnvVar("RETRO_CMD", ModeBuildAll)
-	case ModeStaticBuildAll:
-		setEnvVar("RETRO_CMD", ModeStaticBuildAll)
+	case ModeBuild:
+		setEnvVar("RETRO_CMD", ModeBuild)
 	}
 	setEnvVar("RETRO_WWW_DIR", "www")
 	setEnvVar("RETRO_SRC_DIR", "src")
@@ -90,38 +86,21 @@ func warmUp(commandMode CommandMode) error {
 	}
 
 	// Check for the presence of `src/App.js`
-	if commandMode == ModeStaticBuildAll {
-		if _, err := os.Stat(filepath.Join(RETRO_SRC_DIR, "App.js")); err != nil {
-			return fmt.Errorf("os.Stat: %w", err)
-		} else if os.IsNotExist(err) {
-			fmt.Fprintln(
-				os.Stderr,
-				"Missing `src/App.js` entry point.",
-			)
-			os.Exit(1)
-		}
-	}
-
-	// Check for the presence of `routes.js`
-	if commandMode == ModeStaticBuildAll {
-		if _, err := os.Stat("routes.js"); err != nil {
-			return fmt.Errorf("os.Stat: %w", err)
-		} else if os.IsNotExist(err) {
-			fmt.Fprintln(
-				os.Stderr,
-				"Missing `routes.js` entry point.",
-			)
-			os.Exit(1)
-		}
+	if _, err := os.Stat(filepath.Join(RETRO_SRC_DIR, "App.js")); err != nil {
+		return fmt.Errorf("os.Stat: %w", err)
+	} else if os.IsNotExist(err) {
+		fmt.Fprintln(
+			os.Stderr,
+			"Missing `src/App.js` entry point.",
+		)
+		os.Exit(1)
 	}
 
 	return nil
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-func (r *RetroApp) BuildAll() error {
-	if err := warmUp(ModeBuildAll); err != nil {
+func (r *RetroApp) Build() error {
+	if err := warmUp(ModeBuild); err != nil {
 		return fmt.Errorf("warmUp: %w", err)
 	}
 
@@ -130,104 +109,33 @@ func (r *RetroApp) BuildAll() error {
 		return fmt.Errorf("ipc.NewCommand: %w", err)
 	}
 
-	var doneMessage BuildAllDoneMessage
+	var message BuildDoneMessage
 
-	stdin <- "BUILD_ALL"
+	stdin <- "build"
 loop:
 	for {
 		select {
-		case stdoutLine := <-stdout:
-			if stdoutLine == "BUILD_ALL__DONE" {
-				break loop
+		case line := <-stdout:
+			if err := json.Unmarshal([]byte(line), &message); err != nil {
+				// Log unmarshal errors as stdout so users can debug plugins, etc.
+				fmt.Println(decorateStdoutLine(line))
+				continue
 			}
-			if err := json.Unmarshal([]byte(stdoutLine), &doneMessage); err != nil {
-				fmt.Println(decorateStdoutLine(stdoutLine))
-			} else {
-				stdin <- "DONE"
-				break loop
-			}
-		case stderrText := <-stderr:
-			stdin <- "TERMINATE"
-			fmt.Println(decorateStderrText(stderrText))
+			stdin <- "done"
+			break loop
+		case text := <-stderr:
+			fmt.Println(decorateStderrText(text))
+			stdin <- "done"
 			break loop
 		}
 	}
 
-	// // DEBUG
-	// byteStr, err := json.MarshalIndent(buildAllMessage, "", "  ")
-	// if err != nil {
-	// 	return fmt.Errorf("json.MarshalIndent: %w", err)
-	// }
-	// fmt.Println(string(byteStr))
-
-	return nil
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-func (r *RetroApp) StaticBuildAll() error {
-	if err := warmUp(ModeStaticBuildAll); err != nil {
-		return fmt.Errorf("warmUp: %w", err)
-	}
-
-	stdin, stdout, stderr, err := ipc.NewCommand("node", "node/scripts/backend.esbuild.js")
+	// DEBUG
+	byteStr, err := json.MarshalIndent(message, "", "  ")
 	if err != nil {
-		return fmt.Errorf("ipc.NewCommand: %w", err)
+		return fmt.Errorf("json.MarshalIndent: %w", err)
 	}
-
-	var doneMessage StaticBuildAllDoneMessage
-
-	stdin <- "STATIC_BUILD_ALL"
-loop:
-	for {
-		select {
-		case stdoutLine := <-stdout:
-			if stdoutLine == "STATIC_BUILD_ALL__DONE" {
-				break loop
-			}
-			if err := json.Unmarshal([]byte(stdoutLine), &doneMessage); err != nil {
-				fmt.Println(decorateStdoutLine(stdoutLine))
-			} else {
-				stdin <- "DONE"
-				break loop
-			}
-		case stderrText := <-stderr:
-			stdin <- "TERMINATE"
-			fmt.Println(decorateStderrText(stderrText))
-			break loop
-		}
-	}
-
-	// // DEBUG
-	// byteStr, err := json.MarshalIndent(doneMessage, "", "  ")
-	// if err != nil {
-	// 	return fmt.Errorf("json.MarshalIndent: %w", err)
-	// }
-	// fmt.Println(string(byteStr))
-
-	// Save routes as pages
-	for _, route := range doneMessage.Data.StaticRoutes {
-		filename := filepath.Join(RETRO_OUT_DIR, route.Filename)
-		html := `<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Hello, world!</title>
-		<link rel="stylesheet" href="/bundle.css" />
-		` + splitMulitlineBrackets(route.Head) + `
-	</head>
-	<body>
-		<div id="root">` + route.Body + `</div>
-		<script src="/vendor.js"></script>
-		<script src="/bundle.js"></script>
-	</body>
-</html>
-` // Add EOF
-		if err := os.WriteFile(filename, []byte(html), permFile); err != nil {
-			return fmt.Errorf("os.WriteFile: %w", err)
-		}
-	}
+	fmt.Println(string(byteStr))
 
 	return nil
 }

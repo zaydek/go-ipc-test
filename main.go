@@ -8,7 +8,7 @@ import (
 
 func main() {
 	app := &retro.RetroApp{}
-	if err := app.BuildAll(); err != nil {
-		panic(fmt.Errorf("app.BuildAll: %w", err))
+	if err := app.Build(); err != nil {
+		panic(fmt.Errorf("app.Build: %w", err))
 	}
 }

@@ -2,19 +2,17 @@ package retro
 
 import "strings"
 
-func splitMulitlineBrackets(str string) string {
-	var ret string
+func formatHTMLHead(str string) string {
+	var head string
 	splits := strings.Split(str, "><")
 	for splitIndex, split := range splits {
 		if splitIndex > 0 {
-			// Add the beginning brace
-			ret += "\t\t<"
+			head += "\t\t<"
 		}
-		ret += split
+		head += split
 		if splitIndex+1 < len(splits) {
-			// Add the end brace
-			ret += ">\n"
+			head += ">\n"
 		}
 	}
-	return ret
+	return head
 }
